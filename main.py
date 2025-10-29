@@ -359,6 +359,70 @@ def analizar_datos():
     label_info = ctk.CTkLabel(frame_scroll, text="Analítica generada correctamente ✅", text_color="green")
     label_info.pack(pady=10)
 
+
+
+
+
+
+
+
+
+
+
+
+
+def graficar_dispersion_doble(df1=None, df2=None, col_calif_1=None, col_calif_2=None):
+    """
+    Genera una gráfica de dispersión entre dos archivos calificados.
+    Si no se pasan los DataFrames, se solicitarán por diálogo.
+    """
+
+    # Si no se pasan DataFrames, se abren desde archivos
+    if df1 is None or df2 is None:
+        messagebox.showinfo("Seleccionar archivos", "Selecciona el primer archivo calificado (por ejemplo, diagnóstico)")
+        ruta1 = filedialog.askopenfilename(title="Selecciona primer archivo", filetypes=[("Excel", "*.xlsx *.xls")])
+        if not ruta1: return
+        messagebox.showinfo("Seleccionar archivos", "Selecciona el segundo archivo calificado (por ejemplo, final)")
+        ruta2 = filedialog.askopenfilename(title="Selecciona segundo archivo", filetypes=[("Excel", "*.xlsx *.xls")])
+        if not ruta2: return
+        df1 = pd.read_excel(ruta1)
+        df2 = pd.read_excel(ruta2)
+        nombre1 = os.path.basename(ruta1)
+        nombre2 = os.path.basename(ruta2)
+    else:
+        nombre1 = "Archivo 1"
+        nombre2 = "Archivo 2"
+
+    # Buscar columnas de calificación si no se especifican
+    if col_calif_1 is None:
+        col_calif_1 = next((c for c in df1.columns if "CALIFICACION" in c.upper()), None)
+    if col_calif_2 is None:
+        col_calif_2 = next((c for c in df2.columns if "CALIFICACION" in c.upper()), None)
+
+    if not col_calif_1 or not col_calif_2:
+        messagebox.showerror("Error", "No se encontraron columnas de calificación en los archivos.")
+        return
+
+    # Crear ventana de la gráfica
+    ventana_graf = tk.Toplevel()
+    ventana_graf.title("Gráfica de dispersión de calificaciones")
+    ventana_graf.geometry("1000x700")
+
+    plt.figure(figsize=(9, 6))
+    plt.scatter(range(len(df1[col_calif_1])), df1[col_calif_1], color="blue", alpha=0.6, label=nombre1)
+    plt.scatter(range(len(df2[col_calif_2])), df2[col_calif_2], color="orange", alpha=0.6, label=nombre2)
+    plt.title("Gráfica de dispersión de calificaciones")
+    plt.xlabel("Alumno (índice)")
+    plt.ylabel("Calificación")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+
+    canvas = FigureCanvasTkAgg(plt.gcf(), master=ventana_graf)
+    canvas.draw()
+    canvas.get_tk_widget().pack(fill="both", expand=True, pady=20)
+
+
 #num_ficha = xlsx_datos_alumnos["ficha"].drop_duplicates().reset_index(drop=True)
 #preguntas_diag_df = xlsx_cpa_mat_diag[["P1", "P2", "P3", "P4", "P5" 
 #                                       , "P6", "P7", "P8", "P9", "P10" 

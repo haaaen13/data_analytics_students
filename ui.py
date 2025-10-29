@@ -155,6 +155,13 @@ boton_analizar = ctk.CTkButton(
 )
 boton_analizar.pack(pady=10)
 
+boton_dispersion_doble = ctk.CTkButton(
+    scrollable_frame,
+    text="🔵🟠 Generar gráfica de dispersión (2 archivos calificados)",
+    command=main.graficar_dispersion_doble
+)
+boton_dispersion_doble.pack(pady=10)
+
 
 # Ejecutar ventana
 ventana.mainloop()

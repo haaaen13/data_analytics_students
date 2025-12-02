@@ -1,4 +1,5 @@
 import customtkinter as ctk
+import pywinstyles
 import pandas as pd
 import matplotlib.pyplot as plt
 from tkinter import ttk, filedialog, messagebox
@@ -10,12 +11,11 @@ import main
 # CONFIGURACIÓN DE APARIENCIA
 # -----------------------
 ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("dark-blue")
+ctk.set_default_color_theme("blue")
 
 ventana = ctk.CTk()
 ventana.title("Graficador de Calificaciones")
 ventana.geometry("1280x720")
-
 
 # -----------------------
 # FUNCIONES
@@ -97,12 +97,6 @@ boton_cargar_excel = ctk.CTkButton(
 )
 boton_cargar_excel.pack(pady=10)
 
-
-
-
-
-
-
 # --- Combobox (vacío al inicio) ---
 combo = ttk.Combobox(scrollable_frame, values=[])
 combo.set("Seleccione una columna para graficar")
@@ -121,54 +115,111 @@ frame_grafico.pack(pady=20, fill="both", expand=True)
 boton_exportar = ctk.CTkButton(scrollable_frame, text="Exportar gráfico como imagen", command=exportar_grafico)
 boton_exportar.pack(pady=10)
 
-# --- Botones extra (funciones de main) ---
-ctk.CTkButton(scrollable_frame, text="📘 Cargar carpeta con respuestas (mañana)",
-              command=main.cargar_excel_diag_mañana).pack(pady=10)
+# -------------------------------
+# NUEVA SECCIÓN ORGANIZADA EN 3 COLUMNAS
+# -------------------------------
+# -------------------------------
+# 📘 SECCIÓN DE CALIFICACIÓN (encerrada en un cuadro)
+# -------------------------------
+frame_calificacion = ctk.CTkFrame(scrollable_frame, corner_radius=10)
+frame_calificacion.pack(pady=30, fill="x", padx=20)
 
-ctk.CTkButton(scrollable_frame, text="📗 Cargar carpeta con respuestas (tarde)",
-              command=main.cargar_excel_diag_tarde).pack(pady=10)
+titulo_calificacion = ctk.CTkLabel(
+    frame_calificacion,
+    text="📘 Sección de Calificación",
+    font=ctk.CTkFont(size=18, weight="bold"),
+    text_color="lightblue"
+)
+titulo_calificacion.pack(pady=10)
+
+# Sub-frame interno para organizar botones en grid
+frame_botones = ctk.CTkFrame(frame_calificacion, fg_color="transparent")
+frame_botones.pack(fill="x", padx=10, pady=10)
+
+# Configurar 3 columnas
+frame_botones.grid_columnconfigure(0, weight=1)
+frame_botones.grid_columnconfigure(1, weight=1)
+frame_botones.grid_columnconfigure(2, weight=1)
+
+# 📘 Izquierda: Cargar respuestas de alumnos
+btn_cargar_m = ctk.CTkButton(
+    frame_botones, 
+    text="📘 Cargar carpeta con respuestas (mañana)", 
+    command=main.cargar_excel_diag_mañana
+)
+btn_cargar_m.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+
+btn_cargar_t = ctk.CTkButton(
+    frame_botones, 
+    text="📗 Cargar carpeta con respuestas (tarde)", 
+    command=main.cargar_excel_diag_tarde
+)
+btn_cargar_t.grid(row=1, column=0, padx=10, pady=10, sticky="w")
+
+# 📗 Derecha: Cargar respuestas correctas
+boton_respuestas_m = ctk.CTkButton(
+    frame_botones, 
+    text="📘 Cargar respuestas correctas (mañana)", 
+    command=lambda: setattr(main, 'respuestas_m', main.cargar_excel_respuestas())
+)
+boton_respuestas_m.grid(row=0, column=2, padx=10, pady=10, sticky="e")
+
+boton_respuestas_t = ctk.CTkButton(
+    frame_botones, 
+    text="📗 Cargar respuestas correctas (tarde)", 
+    command=lambda: setattr(main, 'respuestas_t', main.cargar_excel_respuestas())
+)
+boton_respuestas_t.grid(row=1, column=2, padx=10, pady=10, sticky="e")
+
+# ⚙️ Centro: Generar calificaciones
+boton_calificar = ctk.CTkButton(
+    frame_botones,
+    text="⚙️ Generar archivos calificados\n(1=Correcto, 0=Incorrecto)",
+    height=80,
+    fg_color="#3B82F6",
+    hover_color="#2563EB",
+    command=lambda: main.generar_excels_calificados(
+        main.base_datos_diag_m, main.base_datos_diag_t,
+        main.respuestas_m, main.respuestas_t
+    )
+)
+boton_calificar.grid(row=0, column=1, rowspan=2, padx=10, pady=20)
 
 
-boton_respuestas_m = ctk.CTkButton(scrollable_frame, text="📘 Cargar respuestas correctas (mañana)", 
-                                   command=lambda: setattr(main, 'respuestas_m', main.cargar_excel_respuestas()))
-boton_respuestas_m.pack(pady=10)
+# -------------------------------
+# OTROS BOTONES DE FUNCIONALIDAD
+# -------------------------------
+frame_analisis = ctk.CTkFrame(scrollable_frame, corner_radius=10)
+frame_analisis.pack(pady=30, fill="x", padx=20)
 
-boton_respuestas_t = ctk.CTkButton(scrollable_frame, text="📗 Cargar respuestas correctas (tarde)", 
-                                   command=lambda: setattr(main, 'respuestas_t', main.cargar_excel_respuestas()))
-boton_respuestas_t.pack(pady=10)
+titulo_analisis = ctk.CTkLabel(
+    frame_analisis,
+    text="📊 Panel de Análisis y Comparativas",
+    font=ctk.CTkFont(size=18, weight="bold"),
+    text_color="lightblue"
+)
+titulo_analisis.pack(pady=10)
 
+ctk.CTkButton(frame_analisis, text="📊 Cargar archivo combinado para análisis",
+              command=main.cargar_excel_analitico).pack(pady=8)
 
-ctk.CTkButton(scrollable_frame, text="⚙️ Generar archivos calificados (1=Correcto, 0=Incorrecto)",
-              command=lambda: main.generar_excels_calificados(
-                  main.base_datos_diag_m, main.base_datos_diag_t,
-                  main.respuestas_m, main.respuestas_t)).pack(pady=20)
+ctk.CTkButton(frame_analisis, text="📈 Abrir ventana de análisis",
+              command=main.analizar_datos).pack(pady=8)
 
-ctk.CTkButton(scrollable_frame, text="📊 Cargar archivo combinado para análisis",
-              command=main.cargar_excel_analitico).pack(pady=10)
+ctk.CTkButton(frame_analisis, text="📈 Abrir ventana de análisis de errores por pregunta",
+              command=main.analizar_datos_errores).pack(pady=8)
 
-ctk.CTkButton(scrollable_frame, text="📈 Abrir ventana de análisis",
-              command=main.analizar_datos).pack(pady=10)
+ctk.CTkButton(frame_analisis, text="🔵🟠 Generar gráfica de dispersión (2 archivos calificados)",
+              command=main.analizar_datos2).pack(pady=8)
 
-ctk.CTkButton(scrollable_frame, text="📈 Abrir ventana de análisis de errores por pregunta",
-              command=main.analizar_datos_errores).pack(pady=10)
+ctk.CTkButton(frame_analisis, text="📊 Comparar reprobados (2 archivos)",
+              command=main.comparar_reprobados).pack(pady=8)
 
+ctk.CTkButton(frame_analisis, text="📊 Comparar aprobados y reprobados por carrera",
+              command=main.comparar_por_carrera_unico).pack(pady=8)
 
-ctk.CTkButton(scrollable_frame, text="🔵🟠 Generar gráfica de dispersión (2 archivos calificados)",
-              command=main.analizar_datos2).pack(pady=10)
-
-ctk.CTkButton(scrollable_frame, text="📊 Comparar reprobados (2 archivos)",
-              command=main.comparar_reprobados).pack(pady=10)
-
-ctk.CTkButton(scrollable_frame, text="📊 Comparar aprobados y reprobados por carrera",
-              command=main.comparar_por_carrera_unico).pack(pady=10)
-
-
-
-
-ctk.CTkButton(scrollable_frame, text="🔵🟠 Generar gráfica de dispersión de errores (2 archivos calificados)",
-              command=main.analizar_datos2_errores).pack(pady=10)
-
-
+ctk.CTkButton(frame_analisis, text="🔵🟠 Generar gráfica de dispersión de errores (2 archivos calificados)",
+              command=main.analizar_datos2_errores).pack(pady=8)
 
 btn_combinar_diag_final = ttk.Button(scrollable_frame, text="Combinar archivos clave", command=main.combinar_diag_con_final)
 btn_combinar_diag_final.pack(pady=10)

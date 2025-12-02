@@ -203,13 +203,14 @@ def comparar_respuestas_y_calificar(df_diag, df_respuestas, turno):
     print(f"✅ Respuestas comparadas para el turno {turno}")
     return df_diag
 
-
 def generar_excels_calificados(df_m, df_t, df_resp_m, df_resp_t):
     """
     Genera 3 archivos Excel:
       - Calificados para turno mañana
       - Calificados para turno tarde
       - Combinado de ambos
+    Además, agrega la calificación total en la columna 'CALIF DIAG',
+    calculada como (número de aciertos * 5).
     """
     if df_m is None and df_t is None:
         messagebox.showerror("Error", "No hay datos cargados para calificar.")
@@ -218,6 +219,18 @@ def generar_excels_calificados(df_m, df_t, df_resp_m, df_resp_t):
     # Calificar cada turno
     df_m_cal = comparar_respuestas_y_calificar(df_m, df_resp_m, "mañana") if df_m is not None else None
     df_t_cal = comparar_respuestas_y_calificar(df_t, df_resp_t, "tarde") if df_t is not None else None
+
+    # === NUEVO: calcular calificaciones ===
+    def calcular_calificacion(df):
+        preguntas_correctas = [f"P{i}_correcta" for i in range(1, 21)]
+        # Sumar los aciertos y multiplicar por 5
+        df["CALIF DIAG"] = df[preguntas_correctas].sum(axis=1) * 5
+        return df
+
+    if df_m_cal is not None:
+        df_m_cal = calcular_calificacion(df_m_cal)
+    if df_t_cal is not None:
+        df_t_cal = calcular_calificacion(df_t_cal)
 
     # Guardar los archivos individualmente
     ruta_guardado = filedialog.askdirectory(title="Selecciona la carpeta donde guardar los archivos calificados")
@@ -1275,6 +1288,8 @@ def combinar_combinado_completo_con_base_datos():
             messagebox.showerror("Error", "El primer archivo no contiene la columna 'ficha'.")
             return
         df1 = df1.rename(columns={"ficha": "NUMERO DE CONTROL"})
+
+        df1['entidad_procedencia'] = pd.to_numeric(df1['entidad_procedencia'], errors='coerce')
 
         # Convertir NUM_CONTROL a numérico
         

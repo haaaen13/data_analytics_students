@@ -203,23 +203,34 @@ titulo_analisis.pack(pady=10)
 ctk.CTkButton(frame_analisis, text="📊 Cargar archivo combinado para análisis",
               command=main.cargar_excel_analitico).pack(pady=8)
 
-ctk.CTkButton(frame_analisis, text="📈 Abrir ventana de análisis",
+ctk.CTkButton(frame_analisis, text="📈 Gráficar porcentaje de aciertos por pregunta",
               command=main.analizar_datos).pack(pady=8)
 
-ctk.CTkButton(frame_analisis, text="📈 Abrir ventana de análisis de errores por pregunta",
+ctk.CTkButton(frame_analisis, text="📈 Gráficar porcentaje de errores por pregunta",
               command=main.analizar_datos_errores).pack(pady=8)
 
-ctk.CTkButton(frame_analisis, text="🔵🟠 Generar gráfica de dispersión (2 archivos calificados)",
+ctk.CTkButton(frame_analisis, text="🔵🟠 Generar gráfica de dispersión de aciertos (2 archivos calificados)",
               command=main.analizar_datos2).pack(pady=8)
+
+ctk.CTkButton(frame_analisis, text="🔵🟠 Generar gráfica de dispersión de errores (2 archivos calificados)",
+              command=main.analizar_datos2_errores).pack(pady=8)
 
 ctk.CTkButton(frame_analisis, text="📊 Comparar reprobados (2 archivos)",
               command=main.comparar_reprobados).pack(pady=8)
 
-ctk.CTkButton(frame_analisis, text="📊 Comparar aprobados y reprobados por carrera",
-              command=main.comparar_por_carrera_unico).pack(pady=8)
+ctk.CTkButton(frame_analisis, text="📊 Comparar porcentajes aprobados (2 archivos)",
+              command=main.comparar_porcentajes).pack(pady=8)
 
-ctk.CTkButton(frame_analisis, text="🔵🟠 Generar gráfica de dispersión de errores (2 archivos calificados)",
-              command=main.analizar_datos2_errores).pack(pady=8)
+ctk.CTkButton(frame_analisis, text="📊 Ver Promedios por carrera",
+              command=main.comparar_promedio_final_por_carrera).pack(pady=8)
+
+ctk.CTkButton(frame_analisis, text="📊 Comparar promedios",
+              command=main.comparar_promedios_por_carrera_dos_archivos).pack(pady=8)
+
+
+ctk.CTkButton(frame_analisis, text="🔵🟠 Comparar promedios totales de 2 archivos",
+              command=main.comparar_promedio_total).pack(pady=8)
+
 
 btn_combinar_diag_final = ttk.Button(scrollable_frame, text="Combinar archivos clave", command=main.combinar_diag_con_final)
 btn_combinar_diag_final.pack(pady=10)

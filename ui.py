@@ -231,6 +231,24 @@ ctk.CTkButton(frame_analisis, text="📊 Comparar promedios",
 ctk.CTkButton(frame_analisis, text="🔵🟠 Comparar promedios totales de 2 archivos",
               command=main.comparar_promedio_total).pack(pady=8)
 
+def cargar_formateador(tipo_form):
+    main.cargar_formateador(tipo_form)
+
+# Botón para abrir formateador CSV a Excel
+boton_cargar_formateador_csv = ctk.CTkButton(
+    scrollable_frame,
+    text="📂 Abrir formateador de FormScanner",
+    command=lambda: cargar_formateador(1)   
+)
+boton_cargar_formateador_csv.pack(pady=10)
+
+# Botón para abrir formateador Zipgrade a Excel
+boton_cargar_formateador_zipgrade = ctk.CTkButton(
+    scrollable_frame,
+    text="📂 Abrir formateador de Zipgrade",
+    command=lambda: cargar_formateador(2)   
+)
+boton_cargar_formateador_zipgrade.pack(pady=10)
 
 btn_combinar_diag_final = ttk.Button(scrollable_frame, text="Combinar archivos clave", command=main.combinar_diag_con_final)
 btn_combinar_diag_final.pack(pady=10)

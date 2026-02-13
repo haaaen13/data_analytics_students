@@ -1747,3 +1747,214 @@ def combinar_combinado_completo_con_base_datos():
 
     except Exception as e:
         messagebox.showerror("Error", f"Ocurrió un problema al combinar los archivos:\n{str(e)}")
+
+
+
+
+
+
+def cargar_formateador(tipo_form):
+    # ======== Función para procesar CSV ========
+    def procesar_csv():
+        # Seleccionar archivo CSV
+        csv_path = filedialog.askopenfilename(
+            title="Selecciona el archivo CSV",
+            filetypes=[("CSV files", "*.csv")]
+        )
+
+        if not csv_path:
+            messagebox.showerror("Error", "No se seleccionó ningún archivo CSV.")
+            return False
+
+        # Leer el CSV
+        df = pd.read_csv(csv_path, sep=';')
+
+        print("Columnas disponibles en el CSV:")
+        print(df.columns.tolist())
+
+        # Renombrar columnas
+        df = df.rename(columns={
+            'Nombre de archivo': 'File name',
+            'numero-control.Pregunta001': 'NUMERO DE CONTROL.1',
+            'numero-control.Pregunta002': 'NUMERO DE CONTROL.2',
+            'numero-control.Pregunta003': 'NUMERO DE CONTROL.3',
+            'numero-control.Pregunta004': 'NUMERO DE CONTROL.4',
+            'P-1-10.Pregunta005': 'P1',
+            'P-1-10.Pregunta006': 'P2',
+            'P-1-10.Pregunta007': 'P3',
+            'P-1-10.Pregunta008': 'P4',
+            'P-1-10.Pregunta009': 'P5',
+            'P-1-10.Pregunta010': 'P6',
+            'P-1-10.Pregunta011': 'P7',
+            'P-1-10.Pregunta012': 'P8',
+            'P-1-10.Pregunta013': 'P9',
+            'P-1-10.Pregunta014': 'P10',
+            'P-11-20.Pregunta015': 'P11',
+            'P-11-20.Pregunta016': 'P12',
+            'P-11-20.Pregunta017': 'P13',
+            'P-11-20.Pregunta018': 'P14',
+            'P-11-20.Pregunta019': 'P15',
+            'P-11-20.Pregunta020': 'P16',
+            'P-11-20.Pregunta021': 'P17',
+            'P-11-20.Pregunta022': 'P18',
+            'P-11-20.Pregunta023': 'P19',
+            'P-11-20.Pregunta024': 'P20'
+        })
+
+        # Eliminar columnas innecesarias
+        df = df.drop(columns=['File name'], errors='ignore')
+
+        # Combinar columnas de control
+        df['NUMERO DE CONTROL'] = (
+            df['NUMERO DE CONTROL.1'].astype(str) +
+            df['NUMERO DE CONTROL.2'].astype(str) +
+            df['NUMERO DE CONTROL.3'].astype(str) +
+            df['NUMERO DE CONTROL.4'].astype(str)
+        )
+
+        df['NUMERO DE CONTROL'] = df['NUMERO DE CONTROL'].str.replace('|', '', regex=False)
+        df['NUMERO DE CONTROL'] = pd.to_numeric(df['NUMERO DE CONTROL'], errors='coerce')
+
+        # Agregar columnas adicionales
+        df['carrera'] = ''
+        df['ppgrupo'] = ''
+        df['NOMBRE COMPLETO'] = ''
+        df['CALIF DIAG'] = ''
+
+        # Pedir valores al usuario
+        carrera = seleccionar_carrera()
+        ppgrupo = simpledialog.askstring("Entrada", "Ingresa el grupo:")
+
+        df['carrera'] = carrera
+        df['ppgrupo'] = ppgrupo
+
+        # Reordenar columnas
+        columnas_finales = ['carrera', 'ppgrupo', 'NUMERO DE CONTROL', 'NOMBRE COMPLETO', 'CALIF DIAG'] + [f'P{i}' for i in range(1, 21)]
+        columnas_existentes = [col for col in columnas_finales if col in df.columns]
+        df = df[columnas_existentes]
+
+        # Seleccionar ubicación para guardar el Excel
+        excel_path = filedialog.asksaveasfilename(
+            title="Guardar archivo Excel",
+            defaultextension=".xlsx",
+            filetypes=[("Excel files", "*.xlsx")]
+        )
+
+        if not excel_path:
+            messagebox.showerror("Error", "No se seleccionó ubicación para guardar el archivo.")
+            return False
+
+        # Guardar como Excel
+        df.to_excel(excel_path, index=False, engine='openpyxl')
+
+        # Mostrar mensaje combinado
+        continuar = messagebox.askyesno("Proceso completado", f"Archivo guardado como:\n{excel_path}\n\n¿Deseas procesar otro archivo?")
+        return continuar
+
+    # ======== Función para procesar Excel ========
+    def procesar_excel():
+        excel_path = filedialog.askopenfilename(
+            title="Selecciona el archivo Excel",
+            filetypes=[("Excel files", "*.xlsx *.xls")]
+        )
+
+        if not excel_path:
+            messagebox.showerror("Error", "No se seleccionó ningún archivo Excel.")
+            return False
+
+        df = pd.read_excel(excel_path, engine='openpyxl')
+
+        print("Columnas disponibles en el Excel:")
+        print(df.columns.tolist())
+
+        df = df.rename(columns={
+            'StudentID': 'NUMERO DE CONTROL',
+            'PercentCorrect': 'CALIF DIAG'
+        })
+
+        rename_dict = {f'Stu{i}': f'P{i}' for i in range(1, 21)}
+        df = df.rename(columns=rename_dict)
+
+        for i in range(1, 21):
+            col = f'P{i}'
+            if col in df.columns:
+                df[col] = df[col].apply(lambda x: str(x)[0] if pd.notna(x) and str(x).strip() != "" else "")
+
+        df['carrera'] = ''
+        df['ppgrupo'] = ''
+        df['NOMBRE COMPLETO'] = ''
+
+        carrera = seleccionar_carrera()
+        ppgrupo = simpledialog.askstring("Entrada", "Ingresa el grupo:")
+
+        df['carrera'] = carrera
+        df['ppgrupo'] = ppgrupo
+
+        columnas_finales = ['carrera', 'ppgrupo', 'NUMERO DE CONTROL', 'NOMBRE COMPLETO', 'CALIF DIAG'] + [f'P{i}' for i in range(1, 21)]
+        columnas_existentes = [col for col in columnas_finales if col in df.columns]
+        df = df[columnas_existentes]
+
+        save_path = filedialog.asksaveasfilename(
+            title="Guardar archivo Excel",
+            defaultextension=".xlsx",
+            filetypes=[("Excel files", "*.xlsx")]
+        )
+
+        if not save_path:
+            messagebox.showerror("Error", "No se seleccionó ubicación para guardar el archivo.")
+            return False
+
+        df.to_excel(save_path, index=False, engine='openpyxl')
+
+        continuar = messagebox.askyesno(
+            "Proceso completado",
+            f"Archivo guardado como:\n{save_path}\n\n¿Deseas procesar otro archivo?"
+        )
+        return continuar
+
+    # ======== Función para seleccionar carrera ========
+    def seleccionar_carrera():
+        carreras = [
+            "ING. AERONÁUTICA",
+            "ING. BIOMÉDICA",
+            "ING. EN INFORMÁTICA",
+            "ING. EN SEMICONDUCTORES",
+            "INGENIERÍA ELÉCTRICA",
+            "INGENIERÍA ELECTRÓNICA",
+            "INGENIERÍA EN GESTIÓN EMPRESARIAL",
+            "INGENIERÍA EN SISTEMAS COMPUTACIONALES",
+            "INGENIERÍA INDUSTRIAL",
+            "INGENIERÍA MECÁNICA",
+            "INGENIERÍA MECATRÓNICA",
+            "LICENCIATURA EN ADMINISTRACIÓN"
+        ]
+
+        win = tk.Toplevel()
+        win.title("Seleccionar carrera")
+        win.geometry("400x150")
+        win.resizable(False, False)
+        tk.Label(win, text="Selecciona la carrera:", font=("Arial", 12)).pack(pady=10)
+
+        carrera_var = tk.StringVar()
+        combo = ttk.Combobox(win, textvariable=carrera_var, values=carreras, state="readonly", width=40)
+        combo.pack(pady=5)
+        combo.current(0)
+
+        def confirmar():
+            win.destroy()
+
+        tk.Button(win, text="Aceptar", command=confirmar).pack(pady=10)
+        win.wait_window()
+        return carrera_var.get()
+
+    # ======== Lógica principal ========
+    if tipo_form == 1:
+        while True:
+            repetir = procesar_csv()
+            if not repetir:
+                break
+    else:
+        while True:
+            repetir2 = procesar_excel()
+            if not repetir2:
+                break

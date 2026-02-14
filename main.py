@@ -1,3 +1,4 @@
+from tkinter import simpledialog
 import pyodbc
 import customtkinter as ctk
 import pandas as pd
@@ -1914,20 +1915,10 @@ def cargar_formateador(tipo_form):
 
     # ======== Función para seleccionar carrera ========
     def seleccionar_carrera():
-        carreras = [
-            "ING. AERONÁUTICA",
-            "ING. BIOMÉDICA",
-            "ING. EN INFORMÁTICA",
-            "ING. EN SEMICONDUCTORES",
-            "INGENIERÍA ELÉCTRICA",
-            "INGENIERÍA ELECTRÓNICA",
-            "INGENIERÍA EN GESTIÓN EMPRESARIAL",
-            "INGENIERÍA EN SISTEMAS COMPUTACIONALES",
-            "INGENIERÍA INDUSTRIAL",
-            "INGENIERÍA MECÁNICA",
-            "INGENIERÍA MECATRÓNICA",
-            "LICENCIATURA EN ADMINISTRACIÓN"
-        ]
+
+        if base_datos is not None:
+            carrera = base_datos["carrera"].dropna().astype(str).str.strip().unique().tolist()
+            carrera = sorted(carrera)
 
         win = tk.Toplevel()
         win.title("Seleccionar carrera")
@@ -1936,7 +1927,7 @@ def cargar_formateador(tipo_form):
         tk.Label(win, text="Selecciona la carrera:", font=("Arial", 12)).pack(pady=10)
 
         carrera_var = tk.StringVar()
-        combo = ttk.Combobox(win, textvariable=carrera_var, values=carreras, state="readonly", width=40)
+        combo = ttk.Combobox(win, textvariable=carrera_var, values=carrera, state="readonly", width=40)
         combo.pack(pady=5)
         combo.current(0)
 

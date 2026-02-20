@@ -210,10 +210,10 @@ ctk.CTkButton(frame_analisis, text="📈 Gráficar porcentaje de errores por pre
               command=main.analizar_datos_errores).pack(pady=8)
 
 ctk.CTkButton(frame_analisis, text="🔵🟠 Generar gráfica de dispersión de aciertos (2 archivos calificados)",
-              command=main.analizar_datos2).pack(pady=8)
+              command=lambda: main.analizar_datos2("aciertos")).pack(pady=8)
 
 ctk.CTkButton(frame_analisis, text="🔵🟠 Generar gráfica de dispersión de errores (2 archivos calificados)",
-              command=main.analizar_datos2_errores).pack(pady=8)
+              command=lambda: main.analizar_datos2("erroes")).pack(pady=8)
 
 ctk.CTkButton(frame_analisis, text="📊 Comparar reprobados (2 archivos)",
               command=main.comparar_reprobados).pack(pady=8)

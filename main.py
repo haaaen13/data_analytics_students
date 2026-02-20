@@ -612,11 +612,12 @@ def analizar_datos_errores():
     generar_graficas()
 
 # ---------- analizar_datos2 (comparativo entre 2 archivos) ----------
-def analizar_datos2():
-    """Permite seleccionar y comparar dos archivos Excel con opción de filtrar por grupo (ppgrupo),
-    además de restablecer la vista general sin filtros y guardar la gráfica como PNG."""
+def analizar_datos2(modo="aciertos"):
+    """Comparador de dos archivos Excel por grupo (ppgrupo).
+    modo = 'aciertos' o 'errores'
+    """
 
-    # --- Seleccionar los archivos ---
+    # --- Seleccionar archivos ---
     ruta1 = filedialog.askopenfilename(
         title="Selecciona el primer archivo Excel",
         filetypes=[("Archivos Excel", "*.xlsx *.xls")]
@@ -640,46 +641,48 @@ def analizar_datos2():
         messagebox.showerror("Error al leer Excel", str(e))
         return
 
-    # Obtener nombres base de los archivos (sin extensión)
     nombre1 = os.path.basename(ruta1).replace(".xlsx", "").replace(".xls", "")
     nombre2 = os.path.basename(ruta2).replace(".xlsx", "").replace(".xls", "")
 
-    # --- Crear ventana principal ---
+    # --- Ventana ---
     ventana_comp = tk.Toplevel()
-    ventana_comp.title("Comparador de Resultados (dos archivos)")
+    titulo_modo = "Aciertos" if modo == "aciertos" else "Errores"
+    ventana_comp.title(f"Comparador de Resultados — {titulo_modo}")
     ventana_comp.geometry("1300x850")
 
-    frame_scroll = ctk.CTkScrollableFrame(ventana_comp, label_text="Comparación de grupos o archivos")
+    frame_scroll = ctk.CTkScrollableFrame(
+        ventana_comp,
+        label_text="Comparación de grupos o archivos"
+    )
     frame_scroll.pack(fill="both", expand=True, padx=20, pady=20)
 
-    # --- Combobox de grupos para cada archivo ---
+    # --- Combobox grupos ---
     ctk.CTkLabel(frame_scroll, text=f"Grupo en {nombre1}:").pack(pady=5)
-    if "ppgrupo" in excel1.columns:
-        grupos1 = sorted(excel1["ppgrupo"].dropna().astype(str).str.strip().unique().tolist())
-    else:
-        grupos1 = []
+    grupos1 = sorted(excel1["ppgrupo"].dropna().astype(str).str.strip().unique().tolist()) \
+              if "ppgrupo" in excel1.columns else []
     combo_grupo1 = ttk.Combobox(frame_scroll, values=["(Todos)"] + grupos1)
     combo_grupo1.set("(Todos)")
     combo_grupo1.pack(pady=5)
 
     ctk.CTkLabel(frame_scroll, text=f"Grupo en {nombre2}:").pack(pady=5)
-    if "ppgrupo" in excel2.columns:
-        grupos2 = sorted(excel2["ppgrupo"].dropna().astype(str).str.strip().unique().tolist())
-    else:
-        grupos2 = []
+    grupos2 = sorted(excel2["ppgrupo"].dropna().astype(str).str.strip().unique().tolist()) \
+              if "ppgrupo" in excel2.columns else []
     combo_grupo2 = ttk.Combobox(frame_scroll, values=["(Todos)"] + grupos2)
     combo_grupo2.set("(Todos)")
     combo_grupo2.pack(pady=5)
 
-    # --- Frame donde se dibujarán las gráficas ---
+    # --- Frame gráficas ---
     frame_graficas = ctk.CTkFrame(frame_scroll)
     frame_graficas.pack(fill="both", expand=True, pady=20)
 
     preguntas = [f"P{i}_correcta" for i in range(1, 21)]
     x = range(1, 21)
 
-    # --- Función para generar las gráficas ---
+    # ==========================================================
+    # ⭐ FUNCIÓN INTERNA — GENERAR COMPARACIÓN
+    # ==========================================================
     def generar_comparacion():
+
         for w in frame_graficas.winfo_children():
             w.destroy()
 
@@ -689,44 +692,55 @@ def analizar_datos2():
         df1 = excel1.copy()
         df2 = excel2.copy()
 
-        # Filtrado independiente por grupo
+        # Filtrar por grupo
         if grupo1 != "(Todos)" and "ppgrupo" in df1.columns:
             df1 = df1[df1["ppgrupo"].astype(str).str.strip() == grupo1]
         if grupo2 != "(Todos)" and "ppgrupo" in df2.columns:
             df2 = df2[df2["ppgrupo"].astype(str).str.strip() == grupo2]
 
-        # Asegurar columnas P1..P20_correcta
+        # Asegurar columnas
         for df in [df1, df2]:
             for col in preguntas:
                 if col not in df.columns:
                     df[col] = float("nan")
 
-        # Calcular % de error
-        e1 = ( df1[preguntas].mean()) * 100
-        e2 = ( df2[preguntas].mean()) * 100
+        # 🔥 Cálculo según modo
+        if modo == "aciertos":
+            e1 = df1[preguntas].mean() * 100
+            e2 = df2[preguntas].mean() * 100
+            titulo = "Comparación de aciertos por pregunta"
+            ylabel = "% de aciertos"
+        else:
+            e1 = (1 - df1[preguntas].mean()) * 100
+            e2 = (1 - df2[preguntas].mean()) * 100
+            titulo = "Comparación de errores por pregunta"
+            ylabel = "% de errores"
 
-        # --- Gráfica 1: comparación de errores ---
+        # --- Gráfica principal ---
         plt.figure(figsize=(10, 6))
-        plt.plot(x, e1.values, marker="o", linestyle="--", label=f"{nombre1} - {grupo1}")
-        plt.plot(x, e2.values, marker="o", linestyle="--", label=f"{nombre2} - {grupo2}")
-        plt.title("Comparación de aciertos por pregunta")
+        plt.plot(x, e1.values, marker="o", linestyle="--",
+                 label=f"{nombre1} - {grupo1}")
+        plt.plot(x, e2.values, marker="o", linestyle="--",
+                 label=f"{nombre2} - {grupo2}")
+
+        plt.title(titulo)
         plt.xlabel("Pregunta")
-        plt.ylabel("% de aciertos")
+        plt.ylabel(ylabel)
         plt.xticks(x, [f"P{i}" for i in x])
-        plt.ylim(0, 100)  # 🔹 Escala fija 0 a 100
+        plt.ylim(0, 100)
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
 
-        # Guardar referencia de la figura para el botón de guardado
         fig_comparacion = plt.gcf()
 
         canvas1 = FigureCanvasTkAgg(fig_comparacion, master=frame_graficas)
         canvas1.draw()
         canvas1.get_tk_widget().pack(pady=20)
 
-        # --- Gráfica 2: Aprobados vs Reprobados ---
+        # --- Gráfica aprobados/reprobados ---
         if "CALIFICACION DIAG" in df1.columns and "CALIFICACION DIAG" in df2.columns:
+
             aprob1 = (df1["CALIFICACION DIAG"] >= 60).sum()
             reprob1 = (df1["CALIFICACION DIAG"] < 60).sum()
             aprob2 = (df2["CALIFICACION DIAG"] >= 60).sum()
@@ -739,17 +753,22 @@ def analizar_datos2():
             })
 
             plt.figure(figsize=(7, 6))
-            sns.barplot(data=df_aprob, x="Archivo", y="Cantidad", hue="Resultado", palette="pastel")
+            sns.barplot(data=df_aprob,
+                        x="Archivo", y="Cantidad",
+                        hue="Resultado",
+                        palette="pastel")
+
             plt.title("Comparación de aprobados y reprobados")
-            plt.ylim(0, 100)  # 🔹 Escala fija 0 a 100 para uniformidad visual
+            plt.ylim(0, 100)
             plt.tight_layout()
 
             fig_aprob = plt.gcf()
+
             canvas2 = FigureCanvasTkAgg(fig_aprob, master=frame_graficas)
             canvas2.draw()
             canvas2.get_tk_widget().pack(pady=20)
 
-        # --- Botón para guardar la gráfica ---
+        # --- Guardar PNG ---
         def guardar_png():
             archivo = filedialog.asksaveasfilename(
                 defaultextension=".png",
@@ -758,204 +777,43 @@ def analizar_datos2():
             )
             if archivo:
                 fig_comparacion.savefig(archivo, dpi=300)
-                messagebox.showinfo("Guardado", f"Gráfica guardada como:\n{archivo}")
+                messagebox.showinfo("Guardado",
+                                    f"Gráfica guardada como:\n{archivo}")
 
-        boton_guardar = ctk.CTkButton(frame_graficas, text="💾 Guardar gráfica como PNG", command=guardar_png)
-        boton_guardar.pack(pady=10)
+        ctk.CTkButton(
+            frame_graficas,
+            text="💾 Guardar gráfica como PNG",
+            command=guardar_png
+        ).pack(pady=10)
 
-    # --- Función para restablecer la comparación general ---
+    # --- Reset ---
     def resetear_comparacion():
         combo_grupo1.set("(Todos)")
         combo_grupo2.set("(Todos)")
         generar_comparacion()
 
-    # --- Botones de acción ---
+    # --- Botones ---
     botones_frame = ctk.CTkFrame(frame_scroll)
     botones_frame.pack(pady=10)
 
-    boton_generar = ctk.CTkButton(botones_frame, text="📊 Generar comparación", command=generar_comparacion)
-    boton_generar.grid(row=0, column=0, padx=10)
+    ctk.CTkButton(
+        botones_frame,
+        text="📊 Generar comparación",
+        command=generar_comparacion
+    ).grid(row=0, column=0, padx=10)
 
-    boton_reset = ctk.CTkButton(botones_frame, text="🔄 Restablecer comparación general", fg_color="gray", command=resetear_comparacion)
-    boton_reset.grid(row=0, column=1, padx=10)
+    ctk.CTkButton(
+        botones_frame,
+        text="🔄 Restablecer comparación general",
+        fg_color="gray",
+        command=resetear_comparacion
+    ).grid(row=0, column=1, padx=10)
 
-    # --- Genera la comparación inicial (sin filtros) ---
+    # Generación inicial
     generar_comparacion()
 
 
-def analizar_datos2_errores():
-    """Permite seleccionar y comparar dos archivos Excel con opción de filtrar por grupo (ppgrupo),
-    además de restablecer la vista general sin filtros y guardar la gráfica como PNG."""
 
-    # --- Seleccionar los archivos ---
-    ruta1 = filedialog.askopenfilename(
-        title="Selecciona el primer archivo Excel",
-        filetypes=[("Archivos Excel", "*.xlsx *.xls")]
-    )
-    if not ruta1:
-        messagebox.showinfo("Cancelado", "No se seleccionó el primer archivo.")
-        return
-
-    ruta2 = filedialog.askopenfilename(
-        title="Selecciona el segundo archivo Excel",
-        filetypes=[("Archivos Excel", "*.xlsx *.xls")]
-    )
-    if not ruta2:
-        messagebox.showinfo("Cancelado", "No se seleccionó el segundo archivo.")
-        return
-
-    try:
-        excel1 = pd.read_excel(ruta1)
-        excel2 = pd.read_excel(ruta2)
-    except Exception as e:
-        messagebox.showerror("Error al leer Excel", str(e))
-        return
-
-    # Obtener nombres base de los archivos (sin extensión)
-    nombre1 = os.path.basename(ruta1).replace(".xlsx", "").replace(".xls", "")
-    nombre2 = os.path.basename(ruta2).replace(".xlsx", "").replace(".xls", "")
-
-    # --- Crear ventana principal ---
-    ventana_comp = tk.Toplevel()
-    ventana_comp.title("Comparador de Resultados (dos archivos)")
-    ventana_comp.geometry("1300x850")
-
-    frame_scroll = ctk.CTkScrollableFrame(ventana_comp, label_text="Comparación de grupos o archivos")
-    frame_scroll.pack(fill="both", expand=True, padx=20, pady=20)
-
-    # --- Combobox de grupos para cada archivo ---
-    ctk.CTkLabel(frame_scroll, text=f"Grupo en {nombre1}:").pack(pady=5)
-    if "ppgrupo" in excel1.columns:
-        grupos1 = sorted(excel1["ppgrupo"].dropna().astype(str).str.strip().unique().tolist())
-    else:
-        grupos1 = []
-    combo_grupo1 = ttk.Combobox(frame_scroll, values=["(Todos)"] + grupos1)
-    combo_grupo1.set("(Todos)")
-    combo_grupo1.pack(pady=5)
-
-    ctk.CTkLabel(frame_scroll, text=f"Grupo en {nombre2}:").pack(pady=5)
-    if "ppgrupo" in excel2.columns:
-        grupos2 = sorted(excel2["ppgrupo"].dropna().astype(str).str.strip().unique().tolist())
-    else:
-        grupos2 = []
-    combo_grupo2 = ttk.Combobox(frame_scroll, values=["(Todos)"] + grupos2)
-    combo_grupo2.set("(Todos)")
-    combo_grupo2.pack(pady=5)
-
-    # --- Frame donde se dibujarán las gráficas ---
-    frame_graficas = ctk.CTkFrame(frame_scroll)
-    frame_graficas.pack(fill="both", expand=True, pady=20)
-
-    preguntas = [f"P{i}_correcta" for i in range(1, 21)]
-    x = range(1, 21)
-
-    # --- Función para generar las gráficas ---
-    def generar_comparacion():
-        for w in frame_graficas.winfo_children():
-            w.destroy()
-
-        grupo1 = combo_grupo1.get()
-        grupo2 = combo_grupo2.get()
-
-        df1 = excel1.copy()
-        df2 = excel2.copy()
-
-        # Filtrado independiente por grupo
-        if grupo1 != "(Todos)" and "ppgrupo" in df1.columns:
-            df1 = df1[df1["ppgrupo"].astype(str).str.strip() == grupo1]
-        if grupo2 != "(Todos)" and "ppgrupo" in df2.columns:
-            df2 = df2[df2["ppgrupo"].astype(str).str.strip() == grupo2]
-
-        # Asegurar columnas P1..P20_correcta
-        for df in [df1, df2]:
-            for col in preguntas:
-                if col not in df.columns:
-                    df[col] = float("nan")
-
-        # Calcular % de error
-        e1 = ( 1- df1[preguntas].mean()) * 100
-        e2 = ( 1- df2[preguntas].mean()) * 100
-
-        # --- Gráfica 1: comparación de errores ---
-        plt.figure(figsize=(10, 6))
-        plt.plot(x, e1.values, marker="o", linestyle="--", label=f"{nombre1} - {grupo1}")
-        plt.plot(x, e2.values, marker="o", linestyle="--", label=f"{nombre2} - {grupo2}")
-        plt.title("Comparación de errores por pregunta")
-        plt.xlabel("Pregunta")
-        plt.ylabel("% de errores")
-        plt.xticks(x, [f"P{i}" for i in x])
-        plt.ylim(0, 100)  # 🔹 Escala fija 0 a 100
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        # Guardar referencia de la figura para el botón de guardado
-        fig_comparacion = plt.gcf()
-
-        canvas1 = FigureCanvasTkAgg(fig_comparacion, master=frame_graficas)
-        canvas1.draw()
-        canvas1.get_tk_widget().pack(pady=20)
-
-        # --- Gráfica 2: Aprobados vs Reprobados ---
-        if "CALIFICACION DIAG" in df1.columns and "CALIFICACION DIAG" in df2.columns:
-            aprob1 = (df1["CALIFICACION DIAG"] >= 60).sum()
-            reprob1 = (df1["CALIFICACION DIAG"] < 60).sum()
-            aprob2 = (df2["CALIFICACION DIAG"] >= 60).sum()
-            reprob2 = (df2["CALIFICACION DIAG"] < 60).sum()
-
-            df_aprob = pd.DataFrame({
-                "Archivo": [nombre1, nombre1, nombre2, nombre2],
-                "Resultado": ["Aprobado", "Reprobado", "Aprobado", "Reprobado"],
-                "Cantidad": [aprob1, reprob1, aprob2, reprob2]
-            })
-
-            plt.figure(figsize=(7, 6))
-            sns.barplot(data=df_aprob, x="Archivo", y="Cantidad", hue="Resultado", palette="pastel")
-            plt.title("Comparación de aprobados y reprobados")
-            plt.ylim(0, 100)  # 🔹 Escala fija 0 a 100 para uniformidad visual
-            plt.tight_layout()
-
-            fig_aprob = plt.gcf()
-            canvas2 = FigureCanvasTkAgg(fig_aprob, master=frame_graficas)
-            canvas2.draw()
-            canvas2.get_tk_widget().pack(pady=20)
-
-        # --- Botón para guardar la gráfica ---
-        def guardar_png():
-            archivo = filedialog.asksaveasfilename(
-                defaultextension=".png",
-                filetypes=[("Imagen PNG", "*.png")],
-                title="Guardar gráfica como PNG"
-            )
-            if archivo:
-                fig_comparacion.savefig(archivo, dpi=300)
-                messagebox.showinfo("Guardado", f"Gráfica guardada como:\n{archivo}")
-
-
-
-        boton_guardar = ctk.CTkButton(frame_graficas, text="💾 Guardar gráfica como PNG", command=guardar_png)
-        boton_guardar.pack(pady=10)
-
-    # --- Función para restablecer la comparación general ---
-    def resetear_comparacion():
-        combo_grupo1.set("(Todos)")
-        combo_grupo2.set("(Todos)")
-        generar_comparacion()
-
-
-
-
-    # --- Botones de acción ---
-    botones_frame = ctk.CTkFrame(frame_scroll)
-    botones_frame.pack(pady=10)
-
-    boton_generar = ctk.CTkButton(botones_frame, text="📊 Generar comparación", command=generar_comparacion)
-    boton_generar.grid(row=0, column=0, padx=10)
-
-    boton_reset = ctk.CTkButton(botones_frame, text="🔄 Restablecer comparación general", fg_color="gray", command=resetear_comparacion)
-    boton_reset.grid(row=0, column=1, padx=10)
-
-    # --- Genera la comparación inicial (sin filtros) ---
-    generar_comparacion()
 
 
 def comparar_reprobados():

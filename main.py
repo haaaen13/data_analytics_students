@@ -12,6 +12,7 @@ from tkinter import ttk
 import os
 
 
+
 #base_datos=pd.read_excel(r"C:\Users\Ramir\Downloads\Base_alumnos 3.xlsx")
 #xlsx_cpa_mat_diag=pd.read_excel(r"C:\Users\Ramir\Downloads\2025 CPA MAT COMP diag.xlsx")
 #xlsx_cpa_mat_final=pd.read_excel(r"C:\Users\Ramir\Downloads\2025 CPA mat final.xlsx")
@@ -315,7 +316,7 @@ def cargar_excel_analitico():
 
 
 # ---------- analizar_datos (un solo archivo, con filtros) ----------
-def analizar_datos():
+def analizar_datos(estado='aciertos'):
     fig1=None
     """Analiza un solo archivo con opción de filtrar por carrera y grupo.
     Eje X fijo: P1..P20 y permite guardar las gráficas."""
@@ -391,13 +392,29 @@ def analizar_datos():
             if col not in df.columns:
                 df[col] = float("nan")
 
-        aciertos = df[preguntas_esperadas].mean().reindex(preguntas_esperadas)
+
+        #aqui se calculan aciertos
+        titulo_modo = "Aciertos" if estado == "aciertos" else "Errores"
+        
+
+
+        if estado=="aciertos":
+            aciertos = df[preguntas_esperadas].mean().reindex(preguntas_esperadas)
+
+        else:
+            errores = 1- df[preguntas_esperadas].mean()
+            errores = errores.reindex(preguntas_esperadas)
 
         fig1 = plt.figure(figsize=(10, 6))
-        plt.scatter(x, aciertos.values * 100, color="skyblue")
-        plt.title("Porcentaje de aciertos por pregunta")
+
+
+        if estado=='aciertos':
+            plt.scatter(x, aciertos.values * 100, color="skyblue")
+        else:
+            plt.scatter(x, errores.values * 100, color="skyblue")
+        plt.title(f"Porcentaje de {titulo_modo} por pregunta")
         plt.xlabel("Pregunta")
-        plt.ylabel("% de aciertos")
+        plt.ylabel(f"% de {titulo_modo}")
         plt.xticks(x, [f"P{i}" for i in x])
         plt.xlim(0.5, 20.5)
         plt.ylim(0, 100)
@@ -410,7 +427,7 @@ def analizar_datos():
         canvas1.draw()
         canvas1.get_tk_widget().pack(pady=20)
 
-        figs_generadas["aciertos"] = fig1
+        figs_generadas[titulo_modo] = fig1
 
         if "carrera" in df.columns and "CALIFICACION DIAG" in df.columns:
             prom = df.groupby(df["carrera"].astype(str).str.strip())["CALIFICACION DIAG"].mean().sort_values(ascending=False)
@@ -459,158 +476,6 @@ def analizar_datos():
     generar_graficas()
 
 
-def analizar_datos_errores():
-    """Analiza un solo archivo con opción de filtrar por carrera y grupo.
-    Eje X fijo: P1..P20."""
-    global excel_combinado
-    if excel_combinado is None:
-        messagebox.showerror("Error", "Primero carga el archivo combinado para análisis.")
-        return
-
-    # Crear ventana de análisis
-    ventana_analisis = tk.Toplevel()
-    ventana_analisis.title("Analíticas del Examen")
-    ventana_analisis.geometry("1300x850")
-
-    frame_scroll = ctk.CTkScrollableFrame(ventana_analisis, label_text="Resultados Analíticos")
-    frame_scroll.pack(fill="both", expand=True, padx=20, pady=20)
-
-    # --- Combobox de filtros dinámicos ---
-    ctk.CTkLabel(frame_scroll, text="Filtrar por carrera (opcional):").pack(pady=5)
-    if "carrera" in excel_combinado.columns:
-        carreras = excel_combinado["carrera"].dropna().astype(str).str.strip().unique().tolist()
-        carreras = sorted(carreras)
-    else:
-        carreras = []
-    combo_carrera = ttk.Combobox(frame_scroll, values=["(Todas)"] + carreras, state="readonly")
-    combo_carrera.set("(Todas)")
-    combo_carrera.pack(pady=5)
-
-    ctk.CTkLabel(frame_scroll, text="Filtrar por grupo (opcional):").pack(pady=5)
-    combo_grupo = ttk.Combobox(frame_scroll, values=["(Todos)"], state="readonly")
-    combo_grupo.set("(Todos)")
-    combo_grupo.pack(pady=5)
-
-    # --- Actualiza los grupos según la carrera seleccionada ---
-    def actualizar_grupos(event=None):
-        carrera_sel = combo_carrera.get()
-
-        if carrera_sel == "(Todas)" or "ppgrupo" not in excel_combinado.columns:
-            combo_grupo["values"] = ["(Todos)"]
-            combo_grupo.set("(Todos)")
-        else:
-            df_filtrado = excel_combinado.copy()
-            df_filtrado = df_filtrado[df_filtrado["carrera"].astype(str).str.strip() == str(carrera_sel).strip()]
-            grupos_filtrados = df_filtrado["ppgrupo"].dropna().astype(str).str.strip().unique().tolist()
-            grupos_filtrados = sorted(grupos_filtrados)
-
-            if grupos_filtrados:
-                combo_grupo["values"] = ["(Todos)"] + grupos_filtrados
-                combo_grupo.set("(Todos)")
-            else:
-                combo_grupo["values"] = ["(Todos)"]
-                combo_grupo.set("(Todos)")
-
-    combo_carrera.bind("<<ComboboxSelected>>", actualizar_grupos)
-
-    # Frame donde se colocarán las gráficas
-    frame_graficas = ctk.CTkFrame(frame_scroll)
-    frame_graficas.pack(fill="both", expand=True, pady=20)
-
-    preguntas_esperadas = [f"P{i}_correcta" for i in range(1, 21)]
-    x = range(1, 21)
-    figs_generadas = {}
-
-    def generar_graficas():
-        nonlocal figs_generadas
-        figs_generadas = {}
-        for widget in frame_graficas.winfo_children():
-            widget.destroy()  # limpiar gráficas anteriores
-
-        df = excel_combinado.copy()
-
-        # --- Aplicar filtros ---
-        carrera_sel = combo_carrera.get()
-        grupo_sel = combo_grupo.get()
-        if carrera_sel != "(Todas)" and "carrera" in df.columns:
-            df = df[df["carrera"].astype(str).str.strip() == str(carrera_sel).strip()]
-        if grupo_sel != "(Todos)" and "ppgrupo" in df.columns:
-            df = df[df["ppgrupo"].astype(str).str.strip() == str(grupo_sel).strip()]
-
-        # --- 1️⃣ Errores por pregunta (siempre P1..P20) ---
-        for col in preguntas_esperadas:
-            if col not in df.columns:
-                df[col] = float("nan")
-
-        errores = 1- df[preguntas_esperadas].mean()
-        errores = errores.reindex(preguntas_esperadas)
-
-        fig_errores = plt.figure(figsize=(10, 6))
-        plt.scatter(x, errores.values * 100)
-        plt.title("Porcentaje de errores por pregunta")
-        plt.xlabel("Pregunta")
-        plt.ylabel("% de errores")
-        plt.xticks(x, [f"P{i}" for i in x])
-        plt.xlim(0.5, 20.5)
-        plt.ylim(0, 100)
-        plt.grid(True)
-        plt.tight_layout()
-
-        canvas1 = FigureCanvasTkAgg(fig_errores, master=frame_graficas)
-        canvas1.draw()
-        canvas1.get_tk_widget().pack(pady=20)
-
-        figs_generadas["errores"] = fig_errores
-    
-        # --- 2️⃣ Promedios por carrera ---
-        if "carrera" in df.columns and "CALIFICACION DIAG" in df.columns:
-            prom = df.groupby(df["carrera"].astype(str).str.strip())["CALIFICACION DIAG"].mean().sort_values(ascending=False)
-            fig1=plt.figure(figsize=(10, 6))
-            prom.plot(kind="bar", color="skyblue")
-            plt.title("Promedio de calificación diagnóstica por carrera")
-            plt.xlabel("Carrera")
-            plt.ylabel("Promedio")
-            plt.xticks(rotation=45, ha="right")
-            plt.ylim(0, 100)  # 🔹 Escala fija 0 a 100
-            plt.tight_layout()
-
-            canvas2 = FigureCanvasTkAgg(plt.gcf(), master=frame_graficas)
-            canvas2.draw()
-            canvas2.get_tk_widget().pack(pady=20)
-
-            figs_generadas["promedios"] = fig1
-
-    def guardar_graficas():
-        if not figs_generadas:
-                messagebox.showwarning("Aviso", "Primero genera las gráficas.")
-                return
-
-        for nombre, fig in figs_generadas.items():
-            ruta = filedialog.asksaveasfilename(
-                title=f"Guardar gráfica: {nombre}",
-                defaultextension=".png",
-                filetypes=[("Imagen PNG", "*.png")],
-                initialfile=f"{nombre}.png"
-            )
-
-            if not ruta:
-                continue  # si el usuario cancela, pasa a la siguiente gráfica
-
-            fig.savefig(ruta, dpi=300, bbox_inches="tight")
-
-
-
-
-    # Botón para generar gráficas filtradas
-    boton_filtrar = ctk.CTkButton(frame_scroll, text="🔍 Aplicar filtros y generar gráficas", command=generar_graficas)
-    boton_filtrar.pack(pady=10)
-
-
-    boton_guardar = ctk.CTkButton(frame_scroll, text="💾 Guardar gráficas en PNG", command=guardar_graficas)
-    boton_guardar.pack(pady=10)
-    # Auto-generar sin filtro al abrir
-    generar_graficas()
-
 # ---------- analizar_datos2 (comparativo entre 2 archivos) ----------
 def analizar_datos2(modo="aciertos"):
     """Comparador de dos archivos Excel por grupo (ppgrupo).
@@ -647,7 +512,7 @@ def analizar_datos2(modo="aciertos"):
     # --- Ventana ---
     ventana_comp = tk.Toplevel()
     titulo_modo = "Aciertos" if modo == "aciertos" else "Errores"
-    ventana_comp.title(f"Comparador de Resultados — {titulo_modo}")
+    ventana_comp.title(f"Comparador de Resultados— {titulo_modo}")
     ventana_comp.geometry("1300x850")
 
     frame_scroll = ctk.CTkScrollableFrame(
@@ -815,7 +680,6 @@ def analizar_datos2(modo="aciertos"):
 
 
 
-
 def comparar_reprobados():
     """Compara aprobados y reprobados (según menos de 14 correctas) entre dos archivos Excel,
     mostrando la gráfica en Tkinter, la tabla resumen y permitiendo exportar resultados e imagen."""
@@ -915,7 +779,6 @@ def comparar_reprobados():
     canvas.get_tk_widget().pack(pady=10)
 
     # --- Tabla con datos ---
-    import tkinter.ttk as ttk
 
     tabla_frame = ctk.CTkFrame(frame)
     tabla_frame.pack(pady=10)
@@ -1070,7 +933,6 @@ def comparar_porcentajes():
     canvas.get_tk_widget().pack(pady=10)
 
     # --- Tabla ---
-    import tkinter.ttk as ttk
     tabla_frame = ctk.CTkFrame(frame)
     tabla_frame.pack(pady=10)
 
@@ -1201,7 +1063,6 @@ def comparar_promedio_total():
     canvas.get_tk_widget().pack(pady=10)
 
     # --- Tabla resumen ---
-    import tkinter.ttk as ttk
 
     tabla_frame = ctk.CTkFrame(frame)
     tabla_frame.pack(pady=10)
@@ -1482,8 +1343,7 @@ def comparar_promedio_final_por_carrera():
 
 
 def combinar_diag_con_final():
-    import pandas as pd
-    from tkinter import filedialog, messagebox
+    
 
     # Seleccionar el primer archivo
     ruta_1 = filedialog.askopenfilename(title="Selecciona el Excel diagnóstico combinado calificado", filetypes=[("Excel files", "*.xlsx *.xls")])
@@ -1546,8 +1406,7 @@ def combinar_diag_con_final():
 
 
 def combinar_combinado_completo_con_base_datos():
-    import pandas as pd
-    from tkinter import filedialog, messagebox
+   
 
     # Seleccionar el archivo final (df2)
     ruta_2 = filedialog.askopenfilename(

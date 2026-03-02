@@ -249,15 +249,56 @@ def generar_excels_calificados(df_m, df_t, df_resp_m, df_resp_t):
         messagebox.showwarning("Aviso", "No se seleccionó carpeta para guardar los resultados.")
         return
 
-    if df_m_cal is not None:
-        ruta_m = os.path.join(ruta_guardado, "Exámen_Matutino_Calificado.xlsx")
-        df_m_cal.to_excel(ruta_m, index=False)
-        print(f"💾 Archivo guardado: {ruta_m}")
 
+
+
+    if df_m_cal is not None:
+        ruta_m = filedialog.asksaveasfilename(
+            title="Guardar Examen Matutino",
+            defaultextension=".xlsx",
+            filetypes=[("Archivos Excel", "*.xlsx")],
+            initialfile="Examen_Matutino_Calificado.xlsx"
+        )
+
+    if ruta_m:  # Si no canceló
+        try:
+            df_m_cal.to_excel(ruta_m, index=False)
+            messagebox.showinfo(
+                "Guardado exitoso",
+                f"El archivo se guardó correctamente en:\n{ruta_m}"
+            )
+        except Exception as e:
+            messagebox.showerror(
+                "Error al guardar",
+                f"No se pudo guardar el archivo.\n\n{e}"
+            )
+
+
+    # ----- EXAMEN VESPERTINO -----
     if df_t_cal is not None:
-        ruta_t = os.path.join(ruta_guardado, "Exámen_Vespertino_Calificado.xlsx")
-        df_t_cal.to_excel(ruta_t, index=False)
-        print(f"💾 Archivo guardado: {ruta_t}")
+        ruta_t = filedialog.asksaveasfilename(
+            title="Guardar Examen Vespertino",
+            defaultextension=".xlsx",
+            filetypes=[("Archivos Excel", "*.xlsx")],
+            initialfile="Examen_Vespertino_Calificado.xlsx"
+        )
+
+    if ruta_t:
+        try:
+            df_t_cal.to_excel(ruta_t, index=False)
+            messagebox.showinfo(
+                "Guardado exitoso",
+                f"El archivo se guardó correctamente en:\n{ruta_t}"
+            )
+        except Exception as e:
+            messagebox.showerror(
+                "Error al guardar",
+                f"No se pudo guardar el archivo.\n\n{e}"
+            )
+
+
+
+
 
     # Generar combinado
     combinados = []
@@ -268,10 +309,26 @@ def generar_excels_calificados(df_m, df_t, df_resp_m, df_resp_t):
 
     if combinados:
         df_total = pd.concat(combinados, ignore_index=True)
-        ruta_c = os.path.join(ruta_guardado, "Exámen_Combinado.xlsx")
-        df_total.to_excel(ruta_c, index=False)
-        print(f"💾 Archivo combinado guardado: {ruta_c}")
-        messagebox.showinfo("Éxito", "Archivos calificados generados correctamente.")
+        ruta_c = filedialog.asksaveasfilename(
+            title="Guardar Examen Combinado",
+            defaultextension=".xlsx",
+            filetypes=[("Archivos Excel", "*.xlsx")],
+            initialfile="Examen_Combinado.xlsx"
+        )
+
+    if ruta_t:
+        try:
+            df_total.to_excel(ruta_c, index=False)
+            messagebox.showinfo(
+                "Guardado exitoso",
+                f"El archivo se guardó correctamente en:\n{ruta_c}"
+            )
+        except Exception as e:
+            messagebox.showerror(
+                "Error al guardar",
+                f"No se pudo guardar el archivo.\n\n{e}"
+            )
+
         return df_total
 
     return None
@@ -1490,48 +1547,88 @@ def cargar_formateador(tipo_form):
         print("Columnas disponibles en el CSV:")
         print(df.columns.tolist())
 
-        # Renombrar columnas
         df = df.rename(columns={
-            'Nombre de archivo': 'File name',
-            'numero-control.Pregunta001': 'NUMERO DE CONTROL.1',
-            'numero-control.Pregunta002': 'NUMERO DE CONTROL.2',
-            'numero-control.Pregunta003': 'NUMERO DE CONTROL.3',
-            'numero-control.Pregunta004': 'NUMERO DE CONTROL.4',
-            'P-1-10.Pregunta005': 'P1',
-            'P-1-10.Pregunta006': 'P2',
-            'P-1-10.Pregunta007': 'P3',
-            'P-1-10.Pregunta008': 'P4',
-            'P-1-10.Pregunta009': 'P5',
-            'P-1-10.Pregunta010': 'P6',
-            'P-1-10.Pregunta011': 'P7',
-            'P-1-10.Pregunta012': 'P8',
-            'P-1-10.Pregunta013': 'P9',
-            'P-1-10.Pregunta014': 'P10',
-            'P-11-20.Pregunta015': 'P11',
-            'P-11-20.Pregunta016': 'P12',
-            'P-11-20.Pregunta017': 'P13',
-            'P-11-20.Pregunta018': 'P14',
-            'P-11-20.Pregunta019': 'P15',
-            'P-11-20.Pregunta020': 'P16',
-            'P-11-20.Pregunta021': 'P17',
-            'P-11-20.Pregunta022': 'P18',
-            'P-11-20.Pregunta023': 'P19',
-            'P-11-20.Pregunta024': 'P20'
+            df.columns[0]: "File name",          # Columna 0
+            df.columns[1]: "GRUPO.1",            # Columna 1
+            df.columns[2]: "GRUPO.2",            # Columna 2
+            df.columns[3]: "GRUPO.3",            # Columna 3
+            df.columns[4]: "P11",                # Columna 4
+            df.columns[5]: "P12",                # Columna 5
+            df.columns[6]: "P13",                # Columna 6
+            df.columns[7]: "P14",                # Columna 7
+            df.columns[8]: "P15",                # Columna 8
+            df.columns[9]: "P16",                # Columna 9
+            df.columns[10]: "P17",               # Columna 10
+            df.columns[11]: "P18",               # Columna 11
+            df.columns[12]: "P19",               # Columna 12
+            df.columns[13]: "P20",               # Columna 13
+            df.columns[14]: "P1",                # Columna 14
+            df.columns[15]: "P2",                # Columna 15
+            df.columns[16]: "P3",                # Columna 16
+            df.columns[17]: "P4",                # Columna 17
+            df.columns[18]: "P5",                # Columna 18
+            df.columns[19]: "P6",                # Columna 19
+            df.columns[20]: "P7",                # Columna 20
+            df.columns[21]: "P8",                # Columna 21
+            df.columns[22]: "P9",                # Columna 22
+            df.columns[23]: "P10",               # Columna 23
+            df.columns[24]: "Tipo de Examen",    # Columna 24
+            df.columns[25]: "NUMERO DE CONTROL.1", # Columna 25
+            df.columns[26]: "NUMERO DE CONTROL.2", # Columna 26
+            df.columns[27]: "NUMERO DE CONTROL.3", # Columna 27
+            df.columns[28]: "NUMERO DE CONTROL.4"  # Columna 28
         })
-
+        
         # Eliminar columnas innecesarias
         df = df.drop(columns=['File name'], errors='ignore')
-
+        
         # Combinar columnas de control
         df['NUMERO DE CONTROL'] = (
-            df['NUMERO DE CONTROL.1'].astype(str) +
-            df['NUMERO DE CONTROL.2'].astype(str) +
-            df['NUMERO DE CONTROL.3'].astype(str) +
-            df['NUMERO DE CONTROL.4'].astype(str)
+            df['NUMERO DE CONTROL.1'].fillna('').astype(str) +
+            df['NUMERO DE CONTROL.2'].fillna('').astype(str) +
+            df['NUMERO DE CONTROL.3'].fillna('').astype(str) +
+            df['NUMERO DE CONTROL.4'].fillna('').astype(str)
         )
 
         df['NUMERO DE CONTROL'] = df['NUMERO DE CONTROL'].str.replace('|', '', regex=False)
+        df['NUMERO DE CONTROL'] = df['NUMERO DE CONTROL'].astype(str).str.lower().apply(
+            lambda s: ''.join(str(ord(ch) - 97) for ch in s if ch.isalpha())
+        )
         df['NUMERO DE CONTROL'] = pd.to_numeric(df['NUMERO DE CONTROL'], errors='coerce')
+
+       
+        mapa_letras_grupos = {
+            'A': 'A',
+            'B': 'B',
+            'C': 'C',
+            'D': 'D',
+            'E': 'E',
+            'F': 'G',
+            'G': 'I',
+            'H': 'L',
+            'I': 'M',
+            'J': 'N',
+            'K': 'O',
+            'L': 'P',
+            'M': 'S'
+        }
+
+        #Reemplazar valores de semestre por P(propedeutico)
+        df['GRUPO.2'] = 'P'
+
+        # Combinar columnas de GRUPO
+        df['GRUPO'] = (
+            df['GRUPO.1'].fillna('').astype(str) +
+            df['GRUPO.2'].fillna('').astype(str) +
+            df['GRUPO.3'].fillna('').astype(str) 
+        )
+
+        df['GRUPO'] = df['GRUPO'].str.replace('|', '', regex=False)
+
+        # Reemplazar valores según el mapa
+        df['GRUPO'] = df['GRUPO'].map(mapa_letras_grupos).fillna(df['GRUPO'])
+
+        
 
         # Agregar columnas adicionales
         df['carrera'] = ''
@@ -1541,13 +1638,20 @@ def cargar_formateador(tipo_form):
 
         # Pedir valores al usuario
         carrera = seleccionar_carrera()
-        ppgrupo = simpledialog.askstring("Entrada", "Ingresa el grupo:")
+        
 
         df['carrera'] = carrera
-        df['ppgrupo'] = ppgrupo
+        df['ppgrupo'] = df['GRUPO']
 
         # Reordenar columnas
-        columnas_finales = ['carrera', 'ppgrupo', 'NUMERO DE CONTROL', 'NOMBRE COMPLETO', 'CALIF DIAG'] + [f'P{i}' for i in range(1, 21)]
+        columnas_finales = [
+            'carrera',
+            'ppgrupo',
+            'NUMERO DE CONTROL',
+            'NOMBRE COMPLETO',
+            'Tipo de Examen',
+            'CALIF DIAG'
+        ] + [f'P{i}' for i in range(1, 21)]
         columnas_existentes = [col for col in columnas_finales if col in df.columns]
         df = df[columnas_existentes]
 
@@ -1603,7 +1707,7 @@ def cargar_formateador(tipo_form):
         df['NOMBRE COMPLETO'] = ''
 
         carrera = seleccionar_carrera()
-        ppgrupo = simpledialog.askstring("Entrada", "Ingresa el grupo:")
+        ppgrupo = tk.simpledialog.askstring("Entrada", "Ingresa el grupo:")
 
         df['carrera'] = carrera
         df['ppgrupo'] = ppgrupo
@@ -1666,3 +1770,24 @@ def cargar_formateador(tipo_form):
             repetir2 = procesar_excel()
             if not repetir2:
                 break
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

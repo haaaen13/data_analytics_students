@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tkinter import ttk, filedialog, messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from formscanner_batch import run_formscanner_workflow
 import main
 
 # -----------------------
@@ -132,6 +133,14 @@ def show_page(page_name):
         
         def cargar_formateador(tipo_form):
             main.cargar_formateador(tipo_form)
+
+
+        boton_cargar_formateador_csv = ctk.CTkButton(
+            page,
+            text="📂 FORMSCANNER",
+            command=lambda: run_formscanner_workflow()   
+        )
+        boton_cargar_formateador_csv.pack(pady=10)
 
         # Botón para abrir formateador CSV a Excel
         boton_cargar_formateador_csv = ctk.CTkButton(

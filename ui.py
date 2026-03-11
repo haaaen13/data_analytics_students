@@ -1,4 +1,4 @@
-import customtkinter as ctk
+﻿import customtkinter as ctk
 import pandas as pd
 import matplotlib.pyplot as plt
 from tkinter import ttk, filedialog, messagebox
@@ -10,7 +10,7 @@ import main
 # CONFIGURACIÓN DE APARIENCIA
 # -----------------------
 ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("blue")
+ctk.set_default_color_theme("tema.json")
 
 ventana = ctk.CTk()
 ventana.title("Graficador de Calificaciones")
@@ -28,9 +28,11 @@ container.pack(fill="both", expand=True)
 # FUNCIONES
 # -----------------------
 frame_grafico = None
+fig_actual = None
+canvas_actual = None
 
 def mostrar_grafico(nombre_columna, error_label, frame_grafico):
-    global fig_actual
+    global fig_actual, canvas_actual
 
     if main.base_datos is None:
         error_label.configure(text="⚠ Primero carga un archivo Excel.", text_color="red")
@@ -41,6 +43,14 @@ def mostrar_grafico(nombre_columna, error_label, frame_grafico):
         return
     else:
         error_label.configure(text="")
+
+    # Libera recursos del grafico previo antes de crear uno nuevo.
+    if canvas_actual is not None:
+        canvas_actual.get_tk_widget().destroy()
+        canvas_actual = None
+    if fig_actual is not None:
+        plt.close(fig_actual)
+        fig_actual = None
 
     conteo = main.base_datos[nombre_columna].value_counts().head(20)
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -58,13 +68,13 @@ def mostrar_grafico(nombre_columna, error_label, frame_grafico):
     for widget in frame_grafico.winfo_children():
         widget.destroy()
 
-    canvas = FigureCanvasTkAgg(fig, master=frame_grafico)
-    canvas.draw()
-    canvas.get_tk_widget().pack()
+    canvas_actual = FigureCanvasTkAgg(fig, master=frame_grafico)
+    canvas_actual.draw()
+    canvas_actual.get_tk_widget().pack()
 
 
 def exportar_grafico(error_label_exportar):
-    if 'fig_actual' not in globals():
+    if fig_actual is None:
         error_label_exportar.configure(text="⚠ No hay gráfico para exportar.", text_color="red")
         return
 
@@ -103,6 +113,15 @@ def generar_archivos_calificados():
 
 # Función para mostrar una página
 def show_page(page_name):
+    global fig_actual, canvas_actual
+
+    # Cierra cualquier figura activa al cambiar de pagina.
+    if canvas_actual is not None:
+        canvas_actual.get_tk_widget().destroy()
+        canvas_actual = None
+    if fig_actual is not None:
+        plt.close(fig_actual)
+        fig_actual = None
     # Eliminar cualquier contenido previo
     for p in container.winfo_children():
         p.destroy()
@@ -110,7 +129,7 @@ def show_page(page_name):
     # Crear la página según el nombre
     if page_name == "Inicio":
         page = ctk.CTkFrame(container)
-        ctk.CTkLabel(page, text="Página 1: Bienvenido", font=("Arial", 20)).pack(pady=20)
+        ctk.CTkLabel(page, text="Bienvenido", font=("Arial", 20)).pack(pady=20)
         ctk.CTkLabel(page, text="Este programa es calificar examenes, compilar estas calificaciones y graficar los resultados.\n"
                      "Por favor ingresar la base de datos base con los datos de los alumnos de la generación.").pack(pady=10)
 
@@ -270,8 +289,8 @@ def show_page(page_name):
             frame_botones,
             text="⚙️ Generar archivos calificados\n(1=Correcto, 0=Incorrecto)",
             height=80,
-            fg_color="#3B82F6",
-            hover_color="#2563EB",
+            fg_color="#C0421F",
+            hover_color="#AD3A10",
             command=generar_archivos_calificados
         )
         boton_calificar.grid(row=0, column=1, rowspan=2, padx=10, pady=20)
@@ -353,4 +372,11 @@ btn5.pack(side="left", padx=10, pady=5)
 # Mostrar la primera página por defecto
 show_page("Inicio")
 
+def on_close():
+    plt.close('all')
+    ventana.destroy()
+
+ventana.protocol("WM_DELETE_WINDOW", on_close)
+
 ventana.mainloop()
+

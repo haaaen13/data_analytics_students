@@ -243,6 +243,10 @@ def generar_excels_calificados(df_m, df_t, df_resp_m, df_resp_t):
     if df_t_cal is not None:
         df_t_cal = calcular_calificacion(df_t_cal)
 
+    ruta_m = None
+    ruta_t = None
+    ruta_c = None
+
     # Guardar los archivos individualmente
     ruta_guardado = filedialog.askdirectory(title="Selecciona la carpeta donde guardar los archivos calificados")
     if not ruta_guardado:
@@ -316,7 +320,7 @@ def generar_excels_calificados(df_m, df_t, df_resp_m, df_resp_t):
             initialfile="Examen_Combinado.xlsx"
         )
 
-    if ruta_t:
+    if ruta_c:
         try:
             df_total.to_excel(ruta_c, index=False)
             messagebox.showinfo(
@@ -430,6 +434,8 @@ def analizar_datos(estado='aciertos'):
 
     def generar_graficas():
         nonlocal figs_generadas
+        for fig in figs_generadas.values():
+            plt.close(fig)
         figs_generadas = {}
 
         for widget in frame_graficas.winfo_children():
@@ -530,6 +536,13 @@ def analizar_datos(estado='aciertos'):
     boton_guardar = ctk.CTkButton(frame_scroll, text="💾 Guardar gráficas en PNG", command=guardar_graficas)
     boton_guardar.pack(pady=10)
 
+    def on_close():
+        for fig in figs_generadas.values():
+            plt.close(fig)
+        ventana_analisis.destroy()
+
+    ventana_analisis.protocol("WM_DELETE_WINDOW", on_close)
+
     generar_graficas()
 
 
@@ -599,11 +612,22 @@ def analizar_datos2(modo="aciertos"):
 
     preguntas = [f"P{i}_correcta" for i in range(1, 21)]
     x = range(1, 21)
+    fig_comparacion_actual = None
+    fig_aprob_actual = None
 
     # ==========================================================
     # ⭐ FUNCIÓN INTERNA — GENERAR COMPARACIÓN
     # ==========================================================
     def generar_comparacion():
+        nonlocal fig_comparacion_actual, fig_aprob_actual
+
+        if fig_comparacion_actual is not None:
+            plt.close(fig_comparacion_actual)
+            fig_comparacion_actual = None
+        if fig_aprob_actual is not None:
+            plt.close(fig_aprob_actual)
+            fig_aprob_actual = None
+
 
         for w in frame_graficas.winfo_children():
             w.destroy()
@@ -655,6 +679,7 @@ def analizar_datos2(modo="aciertos"):
         plt.tight_layout()
 
         fig_comparacion = plt.gcf()
+        fig_comparacion_actual = fig_comparacion
 
         canvas1 = FigureCanvasTkAgg(fig_comparacion, master=frame_graficas)
         canvas1.draw()
@@ -685,6 +710,7 @@ def analizar_datos2(modo="aciertos"):
             plt.tight_layout()
 
             fig_aprob = plt.gcf()
+            fig_aprob_actual = fig_aprob
 
             canvas2 = FigureCanvasTkAgg(fig_aprob, master=frame_graficas)
             canvas2.draw()
@@ -698,7 +724,8 @@ def analizar_datos2(modo="aciertos"):
                 title="Guardar gráfica como PNG"
             )
             if archivo:
-                fig_comparacion.savefig(archivo, dpi=300)
+                if fig_comparacion_actual is not None:
+                    fig_comparacion_actual.savefig(archivo, dpi=300)
                 messagebox.showinfo("Guardado",
                                     f"Gráfica guardada como:\n{archivo}")
 
@@ -730,6 +757,15 @@ def analizar_datos2(modo="aciertos"):
         fg_color="gray",
         command=resetear_comparacion
     ).grid(row=0, column=1, padx=10)
+
+    def on_close():
+        if fig_comparacion_actual is not None:
+            plt.close(fig_comparacion_actual)
+        if fig_aprob_actual is not None:
+            plt.close(fig_aprob_actual)
+        ventana_comp.destroy()
+
+    ventana_comp.protocol("WM_DELETE_WINDOW", on_close)
 
     # Generación inicial
     generar_comparacion()
@@ -834,6 +870,13 @@ def comparar_reprobados():
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.draw()
     canvas.get_tk_widget().pack(pady=10)
+
+    def on_close():
+        plt.close(fig)
+        ventana_comp.destroy()
+
+    ventana_comp.protocol("WM_DELETE_WINDOW", on_close)
+
 
     # --- Tabla con datos ---
 
@@ -989,6 +1032,13 @@ def comparar_porcentajes():
     canvas.draw()
     canvas.get_tk_widget().pack(pady=10)
 
+    def on_close():
+        plt.close(fig)
+        ventana.destroy()
+
+    ventana.protocol("WM_DELETE_WINDOW", on_close)
+
+
     # --- Tabla ---
     tabla_frame = ctk.CTkFrame(frame)
     tabla_frame.pack(pady=10)
@@ -1118,6 +1168,13 @@ def comparar_promedio_total():
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.draw()
     canvas.get_tk_widget().pack(pady=10)
+
+    def on_close():
+        plt.close(fig)
+        ventana.destroy()
+
+    ventana.protocol("WM_DELETE_WINDOW", on_close)
+
 
     # --- Tabla resumen ---
 
@@ -1271,6 +1328,13 @@ def comparar_promedios_por_carrera_dos_archivos():
     canvas.draw()
     canvas.get_tk_widget().pack(pady=20)
 
+    def on_close():
+        plt.close(fig)
+        ventana.destroy()
+
+    ventana.protocol("WM_DELETE_WINDOW", on_close)
+
+
     # -------- Función para guardar imagen --------
     def guardar_grafica():
         ruta_guardado = filedialog.asksaveasfilename(
@@ -1371,6 +1435,13 @@ def comparar_promedio_final_por_carrera():
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.draw()
     canvas.get_tk_widget().pack(pady=20)
+
+    def on_close():
+        plt.close(fig)
+        ventana.destroy()
+
+    ventana.protocol("WM_DELETE_WINDOW", on_close)
+
 
     # --- Exportar imagen ---
     def guardar_grafica():
@@ -1740,6 +1811,8 @@ def cargar_formateador(tipo_form):
         if base_datos is not None:
             carrera = base_datos["carrera"].dropna().astype(str).str.strip().unique().tolist()
             carrera = sorted(carrera)
+        else:
+            carrera = ["Sin base cargada"]
 
         win = tk.Toplevel()
         win.title("Seleccionar carrera")
@@ -1770,6 +1843,7 @@ def cargar_formateador(tipo_form):
             repetir2 = procesar_excel()
             if not repetir2:
                 break
+
 
 
 

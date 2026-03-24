@@ -1,4 +1,5 @@
 ﻿import customtkinter as ctk
+import tkinter as tk
 import pandas as pd
 import matplotlib.pyplot as plt
 from tkinter import ttk, filedialog, messagebox
@@ -6,15 +7,26 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from formscanner_batch import run_formscanner_workflow
 import main
 
+import sys
+import os
+
+
+
+
+def resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 # -----------------------
 # CONFIGURACIÓN DE APARIENCIA
 # -----------------------
 ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("tema.json")
+ctk.set_default_color_theme(resource_path("tema.json"))
 
 ventana = ctk.CTk()
 ventana.title("Graficador de Calificaciones")
 ventana.geometry("1280x720")
+ventana.iconbitmap(resource_path("huev.ico"))  
 
 # Barra superior con botones (fila)
 topbar = ctk.CTkFrame(ventana, height=50)
@@ -23,6 +35,56 @@ topbar.pack(side="top", fill="x")
 # Frame contenedor donde se mostrarán las páginas
 container = ctk.CTkFrame(ventana)
 container.pack(fill="both", expand=True)
+
+# -----------------------
+# SCROLL HELPER
+# -----------------------
+
+def crear_pagina_scrollable(parent):
+    """
+    Crea un frame scrollable dentro del contenedor padre.
+    Devuelve el frame interno donde se deben agregar los widgets.
+    """
+    # Canvas que contiene todo
+    canvas = tk.Canvas(parent, bg=parent.cget("fg_color")[1] if hasattr(parent, "cget") else "#2b2b2b",
+                       highlightthickness=0)
+    scrollbar = ctk.CTkScrollbar(parent, orientation="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    scrollbar.pack(side="right", fill="y")
+    canvas.pack(side="left", fill="both", expand=True)
+
+    # Frame interno donde van los widgets de la página
+    inner_frame = ctk.CTkFrame(canvas)
+    inner_frame_id = canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+
+    # Ajusta la región de scroll cuando cambia el tamaño del inner_frame
+    def on_frame_configure(event):
+        canvas.configure(scrollregion=canvas.bbox("all"))
+
+    # Ajusta el ancho del inner_frame al ancho del canvas
+    def on_canvas_configure(event):
+        canvas.itemconfig(inner_frame_id, width=event.width)
+
+    inner_frame.bind("<Configure>", on_frame_configure)
+    canvas.bind("<Configure>", on_canvas_configure)
+
+    # Scroll con rueda del mouse (Windows y Linux)
+    def on_mousewheel(event):
+        canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def on_mousewheel_linux(event):
+        if event.num == 4:
+            canvas.yview_scroll(-1, "units")
+        elif event.num == 5:
+            canvas.yview_scroll(1, "units")
+
+    canvas.bind_all("<MouseWheel>", on_mousewheel)
+    canvas.bind_all("<Button-4>", on_mousewheel_linux)
+    canvas.bind_all("<Button-5>", on_mousewheel_linux)
+
+    return inner_frame
+
 
 # -----------------------
 # FUNCIONES
@@ -128,7 +190,13 @@ def show_page(page_name):
 
     # Crear la página según el nombre
     if page_name == "Inicio":
-        page = ctk.CTkFrame(container)
+        # Frame raíz que ocupa todo el contenedor
+        root_frame = ctk.CTkFrame(container)
+        root_frame.pack(fill="both", expand=True)
+
+        # Obtenemos el frame interno scrollable
+        page = crear_pagina_scrollable(root_frame)
+
         ctk.CTkLabel(page, text="Bienvenido", font=("Arial", 20)).pack(pady=20)
         ctk.CTkLabel(page, text="Este programa es calificar examenes, compilar estas calificaciones y graficar los resultados.\n"
                      "Por favor ingresar la base de datos base con los datos de los alumnos de la generación.").pack(pady=10)
@@ -140,11 +208,12 @@ def show_page(page_name):
             command=actualizar_columnas
         )
         boton_cargar_excel.pack(pady=10)
-        
-        page.pack(fill="both", expand=True)
 
     elif page_name == "Formato":
-        page = ctk.CTkFrame(container)
+        root_frame = ctk.CTkFrame(container)
+        root_frame.pack(fill="both", expand=True)
+
+        page = crear_pagina_scrollable(root_frame)
         
         ctk.CTkLabel(page, text="Esta pagina es para corregir el formato en los resultados de FormScanner o Zipgrade\n"
                      "dependiendo del programa que se uso. Todos los archivos resultantes tienen que ser formateados\n"
@@ -162,12 +231,12 @@ def show_page(page_name):
         boton_cargar_formateador_csv.pack(pady=10)
 
         # Botón para abrir formateador CSV a Excel
-        boton_cargar_formateador_csv = ctk.CTkButton(
+        boton_cargar_formateador_csv2 = ctk.CTkButton(
             page,
             text="📂 Abrir formateador de FormScanner",
             command=lambda: cargar_formateador(1)   
         )
-        boton_cargar_formateador_csv.pack(pady=10)
+        boton_cargar_formateador_csv2.pack(pady=10)
 
         # Botón para abrir formateador Zipgrade a Excel
         boton_cargar_formateador_zipgrade = ctk.CTkButton(
@@ -177,10 +246,11 @@ def show_page(page_name):
         )
         boton_cargar_formateador_zipgrade.pack(pady=10)
 
-        page.pack(fill="both", expand=True)
-
     elif page_name == "Graficas":
-        page = ctk.CTkFrame(container)
+        root_frame = ctk.CTkFrame(container)
+        root_frame.pack(fill="both", expand=True)
+
+        page = crear_pagina_scrollable(root_frame)
         
         # --- Descripcion de Graficas
         ctk.CTkLabel(page, text="En esta pagina se puede crear una grafica para cada columna de la base de datos base.\n" 
@@ -200,7 +270,6 @@ def show_page(page_name):
             combo.set("Seleccione una columna para graficar")
 
         # --- Error Label ---
-
         error_label = ctk.CTkLabel(page, text="", text_color="red")
         error_label.pack()
 
@@ -214,20 +283,20 @@ def show_page(page_name):
         # --- Botones principales ---
         boton = ctk.CTkButton(page, text="Mostrar gráfico", command=lambda: mostrar_grafico(combo.get().strip(), error_label, frame_grafico))
         boton.pack(pady=10)
+
+        boton_exportar = ctk.CTkButton(page, text="Exportar gráfico como imagen", command=lambda: exportar_grafico(error_label_exportar))
+        boton_exportar.pack()
         
         frame_grafico.pack(pady=20, fill="both", expand=True)
 
         error_label_exportar = ctk.CTkLabel(page, text="", text_color="red")
-
-        boton_exportar = ctk.CTkButton(page, text="Exportar gráfico como imagen", command=lambda: exportar_grafico(error_label_exportar))
-        boton_exportar.pack()
-
         error_label_exportar.pack()
-
-        page.pack(fill="both", expand=True)
         
     elif page_name == "Calificar":
-        page = ctk.CTkFrame(container)
+        root_frame = ctk.CTkFrame(container)
+        root_frame.pack(fill="both", expand=True)
+
+        page = crear_pagina_scrollable(root_frame)
     
         # --- Frame principal de calificación ---
         frame_calificacion = ctk.CTkFrame(page, corner_radius=10)
@@ -244,6 +313,7 @@ def show_page(page_name):
         #Descripcion para mejor uso de la pagina
         ctk.CTkLabel(frame_calificacion, text="Aqui se califican y se combinan los diferentes archivos.\n"
                      "Se tiene que tener en cuenta que se califica por separado los examenes diagnostico y final.").pack(pady=10)
+        ctk.CTkLabel(frame_calificacion, text="INGRESAR EXAMENES A CALIFICAR").pack(pady=10)
 
         # Sub-frame interno para organizar botones en grid
         frame_botones = ctk.CTkFrame(frame_calificacion, fg_color="transparent")
@@ -287,7 +357,7 @@ def show_page(page_name):
         # ⚙️ Centro: Generar calificaciones
         boton_calificar = ctk.CTkButton(
             frame_botones,
-            text="⚙️ Generar archivos calificados\n(1=Correcto, 0=Incorrecto)",
+            text="⚙️ Generar archivos calificados",
             height=80,
             fg_color="#C0421F",
             hover_color="#AD3A10",
@@ -301,9 +371,11 @@ def show_page(page_name):
         btn_combinar_combinado_base = ctk.CTkButton(page, text="Combinar diagnostico-finales con base de datos", command=main.combinar_combinado_completo_con_base_datos)
         btn_combinar_combinado_base.pack(pady=10)
 
-        page.pack(fill="both", expand=True)
     elif page_name == "Analisis":
-        page = ctk.CTkFrame(container)
+        root_frame = ctk.CTkFrame(container)
+        root_frame.pack(fill="both", expand=True)
+
+        page = crear_pagina_scrollable(root_frame)
         
         frame_analisis = ctk.CTkFrame(page, corner_radius=10)
         frame_analisis.pack(pady=30, fill="x", padx=20)
@@ -334,10 +406,10 @@ def show_page(page_name):
         ctk.CTkButton(frame_analisis, text="🔵🟠 Generar gráfica de dispersión de errores (2 archivos calificados)",
               command=lambda: main.analizar_datos2("errores")).pack(pady=8)
 
-        ctk.CTkButton(frame_analisis, text="📊 Comparar reprobados (2 archivos)",
+        ctk.CTkButton(frame_analisis, text="📊 Comparar aprobados y reprobados (2 archivos)",
               command=main.comparar_reprobados).pack(pady=8)
 
-        ctk.CTkButton(frame_analisis, text="📊 Comparar porcentajes aprobados (2 archivos)",
+        ctk.CTkButton(frame_analisis, text="📊 Comparar porcentajes aprobados y reprobados (2 archivos)",
               command=main.comparar_porcentajes).pack(pady=8)
 
         ctk.CTkButton(frame_analisis, text="📊 Ver Promedios por carrera",
@@ -348,8 +420,6 @@ def show_page(page_name):
 
         ctk.CTkButton(frame_analisis, text="🔵🟠 Comparar promedios totales de 2 archivos",
               command=main.comparar_promedio_total).pack(pady=8)
-    
-        page.pack(fill="both", expand=True)
 
 
 
@@ -379,4 +449,3 @@ def on_close():
 ventana.protocol("WM_DELETE_WINDOW", on_close)
 
 ventana.mainloop()
-

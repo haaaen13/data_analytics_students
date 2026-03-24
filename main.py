@@ -1,5 +1,4 @@
 from tkinter import simpledialog
-import pyodbc
 import customtkinter as ctk
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -42,6 +41,56 @@ def cargar_excel_base():
         messagebox.showerror("Error", f"No se pudo cargar el archivo:\n{e}")
 
 
+# -----------------------
+# SCROLL HELPER para ventanas Toplevel
+# -----------------------
+
+def crear_frame_scrollable_toplevel(toplevel_window):
+    """
+    Crea un frame scrollable dentro de una ventana CTkToplevel/Toplevel.
+    Devuelve el frame interno donde se agregan los widgets.
+    Soporta scroll con rueda del mouse.
+    """
+    canvas = tk.Canvas(toplevel_window, highlightthickness=0)
+    scrollbar_v = ctk.CTkScrollbar(toplevel_window, orientation="vertical", command=canvas.yview)
+    scrollbar_h = ctk.CTkScrollbar(toplevel_window, orientation="horizontal", command=canvas.xview)
+
+    canvas.configure(yscrollcommand=scrollbar_v.set, xscrollcommand=scrollbar_h.set)
+
+    scrollbar_v.pack(side="right", fill="y")
+    scrollbar_h.pack(side="bottom", fill="x")
+    canvas.pack(side="left", fill="both", expand=True)
+
+    inner_frame = ctk.CTkFrame(canvas)
+    inner_frame_id = canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+
+    def on_frame_configure(event):
+        canvas.configure(scrollregion=canvas.bbox("all"))
+
+    def on_canvas_configure(event):
+        # Solo expandir el ancho si el frame es más pequeño que el canvas
+        if inner_frame.winfo_reqwidth() < event.width:
+            canvas.itemconfig(inner_frame_id, width=event.width)
+
+    inner_frame.bind("<Configure>", on_frame_configure)
+    canvas.bind("<Configure>", on_canvas_configure)
+
+    # Scroll con rueda del mouse
+    def on_mousewheel(event):
+        canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def on_mousewheel_linux(event):
+        if event.num == 4:
+            canvas.yview_scroll(-1, "units")
+        elif event.num == 5:
+            canvas.yview_scroll(1, "units")
+
+    canvas.bind_all("<MouseWheel>", on_mousewheel)
+    canvas.bind_all("<Button-4>", on_mousewheel_linux)
+    canvas.bind_all("<Button-5>", on_mousewheel_linux)
+
+    return inner_frame
+
 
 #Excel Diagnostico
 def seleccionar_carpeta_diag(turno):
@@ -62,18 +111,12 @@ def seleccionar_carpeta_diag(turno):
     return ruta_carpeta
 
 
-
-
-
-
 def combinar_archivos_excel_diag(ruta_carpeta, turno):
     """Carga y combina todos los archivos Excel dentro de la carpeta dada."""
     global base_datos_diag_m, base_datos_diag_t
 
-
-    
     if not ruta_carpeta:
-        print(f"Ruta no válida para el turno {turno}.")
+        messagebox.showinfo("Cancelado", "No se seleccionó ninguna carpeta.")
         return None
 
     dataframesdiag = []
@@ -84,7 +127,7 @@ def combinar_archivos_excel_diag(ruta_carpeta, turno):
             try:
                 df = pd.read_excel(ruta_completa)
                 df["archivo_origen"] = archivo
-                df["turno"] = turno  # se agrega columna de turno
+                df["turno"] = turno
                 dataframesdiag.append(df)
                 print(f"[{turno}] Cargado: {archivo}")
             except Exception as e:
@@ -95,7 +138,6 @@ def combinar_archivos_excel_diag(ruta_carpeta, turno):
         print(f"[{turno}] Archivos combinados exitosamente.")
         print(combinado.head())
 
-        # Guardar según turno
         if turno.lower() == "mañana":
             base_datos_diag_m = combinado
         else:
@@ -103,12 +145,8 @@ def combinar_archivos_excel_diag(ruta_carpeta, turno):
 
         return combinado
     else:
-        print(f"[{turno}] No se encontraron archivos Excel en la carpeta.")
+        messagebox.showerror("Error", "No se seleccionó ubicación para guardar el archivo.")
         return None
-
-
-
-
 
 
 def cargar_excel_diag_mañana():
@@ -121,7 +159,6 @@ def cargar_excel_diag_tarde():
     """Carga archivos de respuestas del turno tarde."""
     ruta = seleccionar_carpeta_diag("tarde")
     return combinar_archivos_excel_diag(ruta, "tarde")
-
 
 
 respuestas_m = None
@@ -158,27 +195,24 @@ def cargar_respuestas(turno):
     return df
 
 
-
 def cargar_excel_respuestas():
     global respuestas
 
     messagebox.showinfo(
-    "Aviso", 
-    "Abrir archivo de concentrado de alumnos"
+        "Aviso",
+        "Abrir archivo de concentrado de alumnos"
     )
 
-    # Abre el explorador de archivos
     ruta_archivo = filedialog.askopenfilename(
         title="Selecciona un archivo Excel base para alumnos",
         filetypes=[("Archivos Excel", "*.xlsx *.xls")]
     )
     
     if ruta_archivo:
-        # Carga el archivo como DataFrame
         respuestas = pd.read_excel(ruta_archivo)
         return respuestas
     else:
-        print("No se seleccionó ningún archivo.")
+        messagebox.showerror("Error", f"No se seleccionó ningún archivo.")
         return None
 
 
@@ -191,7 +225,6 @@ def comparar_respuestas_y_calificar(df_diag, df_respuestas, turno):
         messagebox.showerror("Error", f"Faltan archivos de respuestas o respuestas para {turno}.")
         return None
 
-    # Asegurarnos de que las columnas P1...P20 existan en ambos
     preguntas = [f"P{i}" for i in range(1, 21)]
     for col in preguntas:
         if col not in df_diag.columns:
@@ -199,10 +232,8 @@ def comparar_respuestas_y_calificar(df_diag, df_respuestas, turno):
         if col not in df_respuestas.columns:
             df_respuestas[col] = None
 
-    # Tomar solo la primera fila del archivo de respuestas (se asume que es una sola clave)
     respuestas_correctas = df_respuestas.iloc[0][preguntas]
 
-    # Crear columnas de acierto (1 si es igual, 0 si no)
     for col in preguntas:
         col_correcta = f"{col}_correcta"
         df_diag[col_correcta] = df_diag[col].apply(
@@ -213,28 +244,22 @@ def comparar_respuestas_y_calificar(df_diag, df_respuestas, turno):
     return df_diag
 
 
-
 def generar_excels_calificados(df_m, df_t, df_resp_m, df_resp_t):
     """
     Genera 3 archivos Excel:
       - Calificados para turno mañana
       - Calificados para turno tarde
       - Combinado de ambos
-    Además, agrega la calificación total en la columna 'CALIF DIAG',
-    calculada como (número de aciertos * 5).
     """
     if df_m is None and df_t is None:
         messagebox.showerror("Error", "No hay datos cargados para calificar.")
         return
 
-    # Calificar cada turno
     df_m_cal = comparar_respuestas_y_calificar(df_m, df_resp_m, "mañana") if df_m is not None else None
     df_t_cal = comparar_respuestas_y_calificar(df_t, df_resp_t, "tarde") if df_t is not None else None
 
-    # === NUEVO: calcular calificaciones ===
     def calcular_calificacion(df):
         preguntas_correctas = [f"P{i}_correcta" for i in range(1, 21)]
-        # Sumar los aciertos y multiplicar por 5
         df["CALIF DIAG"] = df[preguntas_correctas].sum(axis=1) * 5
         return df
 
@@ -247,14 +272,10 @@ def generar_excels_calificados(df_m, df_t, df_resp_m, df_resp_t):
     ruta_t = None
     ruta_c = None
 
-    # Guardar los archivos individualmente
     ruta_guardado = filedialog.askdirectory(title="Selecciona la carpeta donde guardar los archivos calificados")
     if not ruta_guardado:
         messagebox.showwarning("Aviso", "No se seleccionó carpeta para guardar los resultados.")
         return
-
-
-
 
     if df_m_cal is not None:
         ruta_m = filedialog.asksaveasfilename(
@@ -264,21 +285,13 @@ def generar_excels_calificados(df_m, df_t, df_resp_m, df_resp_t):
             initialfile="Examen_Matutino_Calificado.xlsx"
         )
 
-    if ruta_m:  # Si no canceló
+    if ruta_m:
         try:
             df_m_cal.to_excel(ruta_m, index=False)
-            messagebox.showinfo(
-                "Guardado exitoso",
-                f"El archivo se guardó correctamente en:\n{ruta_m}"
-            )
+            messagebox.showinfo("Guardado exitoso", f"El archivo se guardó correctamente en:\n{ruta_m}")
         except Exception as e:
-            messagebox.showerror(
-                "Error al guardar",
-                f"No se pudo guardar el archivo.\n\n{e}"
-            )
+            messagebox.showerror("Error al guardar", f"No se pudo guardar el archivo.\n\n{e}")
 
-
-    # ----- EXAMEN VESPERTINO -----
     if df_t_cal is not None:
         ruta_t = filedialog.asksaveasfilename(
             title="Guardar Examen Vespertino",
@@ -290,21 +303,10 @@ def generar_excels_calificados(df_m, df_t, df_resp_m, df_resp_t):
     if ruta_t:
         try:
             df_t_cal.to_excel(ruta_t, index=False)
-            messagebox.showinfo(
-                "Guardado exitoso",
-                f"El archivo se guardó correctamente en:\n{ruta_t}"
-            )
+            messagebox.showinfo("Guardado exitoso", f"El archivo se guardó correctamente en:\n{ruta_t}")
         except Exception as e:
-            messagebox.showerror(
-                "Error al guardar",
-                f"No se pudo guardar el archivo.\n\n{e}"
-            )
+            messagebox.showerror("Error al guardar", f"No se pudo guardar el archivo.\n\n{e}")
 
-
-
-
-
-    # Generar combinado
     combinados = []
     if df_m_cal is not None:
         combinados.append(df_m_cal)
@@ -323,43 +325,20 @@ def generar_excels_calificados(df_m, df_t, df_resp_m, df_resp_t):
     if ruta_c:
         try:
             df_total.to_excel(ruta_c, index=False)
-            messagebox.showinfo(
-                "Guardado exitoso",
-                f"El archivo se guardó correctamente en:\n{ruta_c}"
-            )
+            messagebox.showinfo("Guardado exitoso", f"El archivo se guardó correctamente en:\n{ruta_c}")
         except Exception as e:
-            messagebox.showerror(
-                "Error al guardar",
-                f"No se pudo guardar el archivo.\n\n{e}"
-            )
+            messagebox.showerror("Error al guardar", f"No se pudo guardar el archivo.\n\n{e}")
 
         return df_total
 
     return None
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-excel_combinado = None  # Aquí se guardará el archivo combinado cargado
+excel_combinado = None
 
 def cargar_excel_analitico():
     """Permite seleccionar el archivo Excel combinado generado anteriormente."""
     global excel_combinado
-
-
-    #seleccionar ruta de archivo a analizar
 
     ruta = filedialog.askopenfilename(
         title="Selecciona el archivo combinado para análisis",
@@ -378,9 +357,7 @@ def cargar_excel_analitico():
 
 # ---------- analizar_datos (un solo archivo, con filtros) ----------
 def analizar_datos(estado='aciertos'):
-    fig1=None
-    """Analiza un solo archivo con opción de filtrar por carrera y grupo.
-    Eje X fijo: P1..P20 y permite guardar las gráficas."""
+    """Analiza un solo archivo con opción de filtrar por carrera y grupo."""
     global excel_combinado
     if excel_combinado is None:
         messagebox.showerror("Error", "Primero carga el archivo combinado para análisis.")
@@ -429,7 +406,6 @@ def analizar_datos(estado='aciertos'):
     preguntas_esperadas = [f"P{i}_correcta" for i in range(1, 21)]
     x = range(1, 21)
 
-    # 👉 aquí guardamos referencias a las figuras
     figs_generadas = {}
 
     def generar_graficas():
@@ -455,23 +431,17 @@ def analizar_datos(estado='aciertos'):
             if col not in df.columns:
                 df[col] = float("nan")
 
-
-        #aqui se calculan aciertos
         titulo_modo = "Aciertos" if estado == "aciertos" else "Errores"
-        
 
-
-        if estado=="aciertos":
+        if estado == "aciertos":
             aciertos = df[preguntas_esperadas].mean().reindex(preguntas_esperadas)
-
         else:
-            errores = 1- df[preguntas_esperadas].mean()
+            errores = 1 - df[preguntas_esperadas].mean()
             errores = errores.reindex(preguntas_esperadas)
 
         fig1 = plt.figure(figsize=(10, 6))
 
-
-        if estado=='aciertos':
+        if estado == 'aciertos':
             plt.scatter(x, aciertos.values * 100, color="skyblue")
         else:
             plt.scatter(x, errores.values * 100, color="skyblue")
@@ -484,7 +454,7 @@ def analizar_datos(estado='aciertos'):
         plt.grid(True)
         plt.tight_layout()
 
-        fig1=plt.gcf()
+        fig1 = plt.gcf()
 
         canvas1 = FigureCanvasTkAgg(fig1, master=frame_graficas)
         canvas1.draw()
@@ -510,11 +480,10 @@ def analizar_datos(estado='aciertos'):
 
             figs_generadas["promedios"] = fig2
 
-
     def guardar_graficas():
         if not figs_generadas:
-                messagebox.showwarning("Aviso", "Primero genera las gráficas.")
-                return
+            messagebox.showwarning("Aviso", "Primero genera las gráficas.")
+            return
 
         for nombre, fig in figs_generadas.items():
             ruta = filedialog.asksaveasfilename(
@@ -525,10 +494,9 @@ def analizar_datos(estado='aciertos'):
             )
 
             if not ruta:
-                continue  # si el usuario cancela, pasa a la siguiente gráfica
+                continue
 
             fig.savefig(ruta, dpi=300, bbox_inches="tight")
-
 
     boton_filtrar = ctk.CTkButton(frame_scroll, text="🔍 Aplicar filtros y generar gráficas", command=generar_graficas)
     boton_filtrar.pack(pady=10)
@@ -548,11 +516,8 @@ def analizar_datos(estado='aciertos'):
 
 # ---------- analizar_datos2 (comparativo entre 2 archivos) ----------
 def analizar_datos2(modo="aciertos"):
-    """Comparador de dos archivos Excel por grupo (ppgrupo).
-    modo = 'aciertos' o 'errores'
-    """
+    """Comparador de dos archivos Excel por grupo (ppgrupo)."""
 
-    # --- Seleccionar archivos ---
     ruta1 = filedialog.askopenfilename(
         title="Selecciona el primer archivo Excel",
         filetypes=[("Archivos Excel", "*.xlsx *.xls")]
@@ -579,7 +544,6 @@ def analizar_datos2(modo="aciertos"):
     nombre1 = os.path.basename(ruta1).replace(".xlsx", "").replace(".xls", "")
     nombre2 = os.path.basename(ruta2).replace(".xlsx", "").replace(".xls", "")
 
-    # --- Ventana ---
     ventana_comp = tk.Toplevel()
     titulo_modo = "Aciertos" if modo == "aciertos" else "Errores"
     ventana_comp.title(f"Comparador de Resultados— {titulo_modo}")
@@ -591,7 +555,6 @@ def analizar_datos2(modo="aciertos"):
     )
     frame_scroll.pack(fill="both", expand=True, padx=20, pady=20)
 
-    # --- Combobox grupos ---
     ctk.CTkLabel(frame_scroll, text=f"Grupo en {nombre1}:").pack(pady=5)
     grupos1 = sorted(excel1["ppgrupo"].dropna().astype(str).str.strip().unique().tolist()) \
               if "ppgrupo" in excel1.columns else []
@@ -606,7 +569,6 @@ def analizar_datos2(modo="aciertos"):
     combo_grupo2.set("(Todos)")
     combo_grupo2.pack(pady=5)
 
-    # --- Frame gráficas ---
     frame_graficas = ctk.CTkFrame(frame_scroll)
     frame_graficas.pack(fill="both", expand=True, pady=20)
 
@@ -615,9 +577,6 @@ def analizar_datos2(modo="aciertos"):
     fig_comparacion_actual = None
     fig_aprob_actual = None
 
-    # ==========================================================
-    # ⭐ FUNCIÓN INTERNA — GENERAR COMPARACIÓN
-    # ==========================================================
     def generar_comparacion():
         nonlocal fig_comparacion_actual, fig_aprob_actual
 
@@ -628,7 +587,6 @@ def analizar_datos2(modo="aciertos"):
             plt.close(fig_aprob_actual)
             fig_aprob_actual = None
 
-
         for w in frame_graficas.winfo_children():
             w.destroy()
 
@@ -638,19 +596,16 @@ def analizar_datos2(modo="aciertos"):
         df1 = excel1.copy()
         df2 = excel2.copy()
 
-        # Filtrar por grupo
         if grupo1 != "(Todos)" and "ppgrupo" in df1.columns:
             df1 = df1[df1["ppgrupo"].astype(str).str.strip() == grupo1]
         if grupo2 != "(Todos)" and "ppgrupo" in df2.columns:
             df2 = df2[df2["ppgrupo"].astype(str).str.strip() == grupo2]
 
-        # Asegurar columnas
         for df in [df1, df2]:
             for col in preguntas:
                 if col not in df.columns:
                     df[col] = float("nan")
 
-        # 🔥 Cálculo según modo
         if modo == "aciertos":
             e1 = df1[preguntas].mean() * 100
             e2 = df2[preguntas].mean() * 100
@@ -662,12 +617,9 @@ def analizar_datos2(modo="aciertos"):
             titulo = "Comparación de errores por pregunta"
             ylabel = "% de errores"
 
-        # --- Gráfica principal ---
         plt.figure(figsize=(10, 6))
-        plt.plot(x, e1.values, marker="o", linestyle="--",
-                 label=f"{nombre1} - {grupo1}")
-        plt.plot(x, e2.values, marker="o", linestyle="--",
-                 label=f"{nombre2} - {grupo2}")
+        plt.plot(x, e1.values, marker="o", linestyle="--", label=f"{nombre1} - {grupo1}")
+        plt.plot(x, e2.values, marker="o", linestyle="--", label=f"{nombre2} - {grupo2}")
 
         plt.title(titulo)
         plt.xlabel("Pregunta")
@@ -685,9 +637,7 @@ def analizar_datos2(modo="aciertos"):
         canvas1.draw()
         canvas1.get_tk_widget().pack(pady=20)
 
-        # --- Gráfica aprobados/reprobados ---
         if "CALIFICACION DIAG" in df1.columns and "CALIFICACION DIAG" in df2.columns:
-
             aprob1 = (df1["CALIFICACION DIAG"] >= 60).sum()
             reprob1 = (df1["CALIFICACION DIAG"] < 60).sum()
             aprob2 = (df2["CALIFICACION DIAG"] >= 60).sum()
@@ -700,11 +650,7 @@ def analizar_datos2(modo="aciertos"):
             })
 
             plt.figure(figsize=(7, 6))
-            sns.barplot(data=df_aprob,
-                        x="Archivo", y="Cantidad",
-                        hue="Resultado",
-                        palette="pastel")
-
+            sns.barplot(data=df_aprob, x="Archivo", y="Cantidad", hue="Resultado", palette="pastel")
             plt.title("Comparación de aprobados y reprobados")
             plt.ylim(0, 100)
             plt.tight_layout()
@@ -716,7 +662,6 @@ def analizar_datos2(modo="aciertos"):
             canvas2.draw()
             canvas2.get_tk_widget().pack(pady=20)
 
-        # --- Guardar PNG ---
         def guardar_png():
             archivo = filedialog.asksaveasfilename(
                 defaultextension=".png",
@@ -726,8 +671,7 @@ def analizar_datos2(modo="aciertos"):
             if archivo:
                 if fig_comparacion_actual is not None:
                     fig_comparacion_actual.savefig(archivo, dpi=300)
-                messagebox.showinfo("Guardado",
-                                    f"Gráfica guardada como:\n{archivo}")
+                messagebox.showinfo("Guardado", f"Gráfica guardada como:\n{archivo}")
 
         ctk.CTkButton(
             frame_graficas,
@@ -735,27 +679,21 @@ def analizar_datos2(modo="aciertos"):
             command=guardar_png
         ).pack(pady=10)
 
-    # --- Reset ---
     def resetear_comparacion():
         combo_grupo1.set("(Todos)")
         combo_grupo2.set("(Todos)")
         generar_comparacion()
 
-    # --- Botones ---
     botones_frame = ctk.CTkFrame(frame_scroll)
     botones_frame.pack(pady=10)
 
     ctk.CTkButton(
-        botones_frame,
-        text="📊 Generar comparación",
-        command=generar_comparacion
+        botones_frame, text="📊 Generar comparación", command=generar_comparacion
     ).grid(row=0, column=0, padx=10)
 
     ctk.CTkButton(
-        botones_frame,
-        text="🔄 Restablecer comparación general",
-        fg_color="gray",
-        command=resetear_comparacion
+        botones_frame, text="🔄 Restablecer comparación general",
+        fg_color="gray", command=resetear_comparacion
     ).grid(row=0, column=1, padx=10)
 
     def on_close():
@@ -766,18 +704,13 @@ def analizar_datos2(modo="aciertos"):
         ventana_comp.destroy()
 
     ventana_comp.protocol("WM_DELETE_WINDOW", on_close)
-
-    # Generación inicial
     generar_comparacion()
 
 
-
-
+# ---------- comparar_reprobados ----------
 def comparar_reprobados():
-    """Compara aprobados y reprobados (según menos de 14 correctas) entre dos archivos Excel,
-    mostrando la gráfica en Tkinter, la tabla resumen y permitiendo exportar resultados e imagen."""
-    
-    # --- Seleccionar los archivos ---
+    """Compara aprobados y reprobados entre dos archivos Excel con scroll."""
+
     ruta1 = filedialog.askopenfilename(
         title="Selecciona el primer archivo Excel",
         filetypes=[("Archivos Excel", "*.xlsx *.xls")]
@@ -801,23 +734,18 @@ def comparar_reprobados():
         messagebox.showerror("Error al leer Excel", str(e))
         return
 
-    # --- Nombres base de los archivos ---
     nombre1 = os.path.basename(ruta1).replace(".xlsx", "").replace(".xls", "")
     nombre2 = os.path.basename(ruta2).replace(".xlsx", "").replace(".xls", "")
 
-    # --- Columnas esperadas ---
     preguntas = [f"P{i}_correcta" for i in range(1, 21)]
-
     for df in [df1, df2]:
         for col in preguntas:
             if col not in df.columns:
                 df[col] = float("nan")
 
-    # --- Calcular total de respuestas correctas ---
     df1["total_correctas"] = df1[preguntas].sum(axis=1)
     df2["total_correctas"] = df2[preguntas].sum(axis=1)
 
-    # --- Determinar reprobados (<14 correctas) y aprobados (>=14) ---
     reprobados1 = (df1["total_correctas"] < 14).sum()
     reprobados2 = (df2["total_correctas"] < 14).sum()
 
@@ -827,7 +755,6 @@ def comparar_reprobados():
     aprobados1 = total1 - reprobados1
     aprobados2 = total2 - reprobados2
 
-    # --- Crear DataFrame resumen ---
     resumen = pd.DataFrame({
         "Archivo": [nombre1, nombre2],
         "Aprobados": [aprobados1, aprobados2],
@@ -835,15 +762,14 @@ def comparar_reprobados():
         "Total alumnos": [total1, total2]
     })
 
-    # --- Crear ventana ---
+    # --- Ventana con scroll ---
     ventana_comp = ctk.CTkToplevel()
     ventana_comp.title("Comparación de Aprobados y Reprobados")
     ventana_comp.geometry("950x750")
 
-    frame = ctk.CTkFrame(ventana_comp)
-    frame.pack(fill="both", expand=True, padx=20, pady=20)
+    frame = crear_frame_scrollable_toplevel(ventana_comp)
 
-    # --- Crear gráfica ---
+    # --- Gráfica ---
     fig, ax = plt.subplots(figsize=(8, 6))
     x = range(len(resumen))
     ancho = 0.35
@@ -851,8 +777,6 @@ def comparar_reprobados():
     ax.bar([i - ancho/2 for i in x], resumen["Aprobados"], width=ancho, label="Aprobados", color="royalblue")
     ax.bar([i + ancho/2 for i in x], resumen["Reprobados"], width=ancho, label="Reprobados", color="salmon")
 
-
-    # Mostrar valores sobre las barras
     for i, (ap, rp) in enumerate(zip(resumen["Aprobados"], resumen["Reprobados"])):
         ax.text(i - ancho/2, ap + 0.5, str(ap), ha='center', va='bottom', fontsize=9, color='blue')
         ax.text(i + ancho/2, rp + 0.5, str(rp), ha='center', va='bottom', fontsize=9, color='red')
@@ -866,20 +790,11 @@ def comparar_reprobados():
     ax.grid(axis="y", linestyle="--", alpha=0.6)
     plt.tight_layout()
 
-    # --- Mostrar gráfica en Tkinter ---
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.draw()
     canvas.get_tk_widget().pack(pady=10)
 
-    def on_close():
-        plt.close(fig)
-        ventana_comp.destroy()
-
-    ventana_comp.protocol("WM_DELETE_WINDOW", on_close)
-
-
-    # --- Tabla con datos ---
-
+    # --- Tabla ---
     tabla_frame = ctk.CTkFrame(frame)
     tabla_frame.pack(pady=10)
 
@@ -887,17 +802,16 @@ def comparar_reprobados():
     tabla.heading("Aprobados", text="Aprobados")
     tabla.heading("Reprobados", text="Reprobados")
     tabla.heading("Total", text="Total alumnos")
-
     tabla.column("Aprobados", anchor="center", width=150)
     tabla.column("Reprobados", anchor="center", width=150)
     tabla.column("Total", anchor="center", width=150)
 
     for i in range(len(resumen)):
-        tabla.insert("", "end", values=(resumen["Aprobados"][i], resumen["Reprobados"][i], resumen["Total alumnos"][i]), text=resumen["Archivo"][i])
-
+        tabla.insert("", "end",
+                     values=(resumen["Aprobados"][i], resumen["Reprobados"][i], resumen["Total alumnos"][i]),
+                     text=resumen["Archivo"][i])
     tabla.pack(pady=10)
 
-    # --- Botones de acción ---
     def guardar_grafica():
         ruta_guardado = filedialog.asksaveasfilename(
             defaultextension=".png",
@@ -908,24 +822,21 @@ def comparar_reprobados():
             fig.savefig(ruta_guardado, dpi=300)
             messagebox.showinfo("Guardado", f"✅ Gráfica guardada como:\n{ruta_guardado}")
 
-   
-
     botones_frame = ctk.CTkFrame(frame)
     botones_frame.pack(pady=15)
+    ctk.CTkButton(botones_frame, text="💾 Guardar gráfica", command=guardar_grafica).grid(row=0, column=0, padx=10)
 
-    boton_guardar = ctk.CTkButton(botones_frame, text="💾 Guardar gráfica", command=guardar_grafica)
-    boton_guardar.grid(row=0, column=0, padx=10)
+    def on_close():
+        plt.close(fig)
+        ventana_comp.destroy()
 
-   
+    ventana_comp.protocol("WM_DELETE_WINDOW", on_close)
 
 
-
-
+# ---------- comparar_porcentajes ----------
 def comparar_porcentajes():
-    """Compara porcentajes de aprobados y reprobados entre dos archivos Excel,
-    mostrando gráfica, tabla resumen y permitiendo exportar resultados e imagen."""
+    """Compara porcentajes de aprobados y reprobados entre dos archivos Excel con scroll."""
 
-    # --- Seleccionar archivos ---
     ruta1 = filedialog.askopenfilename(
         title="Selecciona el primer archivo Excel",
         filetypes=[("Archivos Excel", "*.xlsx *.xls")]
@@ -942,7 +853,6 @@ def comparar_porcentajes():
         messagebox.showinfo("Cancelado", "No se seleccionó el segundo archivo.")
         return
 
-    # --- Cargar archivos ---
     try:
         df1 = pd.read_excel(ruta1)
         df2 = pd.read_excel(ruta2)
@@ -950,18 +860,15 @@ def comparar_porcentajes():
         messagebox.showerror("Error al leer Excel", str(e))
         return
 
-    # --- Columnas esperadas ---
     preguntas = [f"P{i}_correcta" for i in range(1, 21)]
     for df in [df1, df2]:
         for col in preguntas:
             if col not in df.columns:
                 df[col] = float("nan")
 
-    # --- Totales correctas ---
     df1["total_correctas"] = df1[preguntas].sum(axis=1)
     df2["total_correctas"] = df2[preguntas].sum(axis=1)
 
-    # --- Calcular aprobados y reprobados ---
     reprobados1 = (df1["total_correctas"] < 14).sum()
     reprobados2 = (df2["total_correctas"] < 14).sum()
 
@@ -971,13 +878,11 @@ def comparar_porcentajes():
     aprobados1 = total1 - reprobados1
     aprobados2 = total2 - reprobados2
 
-    # --- Convertir a porcentajes ---
     porc_ap1 = (aprobados1 / total1) * 100
     porc_ap2 = (aprobados2 / total2) * 100
     porc_rp1 = (reprobados1 / total1) * 100
     porc_rp2 = (reprobados2 / total2) * 100
 
-    # --- Crear resumen ---
     nombre1 = os.path.basename(ruta1).replace(".xlsx", "").replace(".xls", "")
     nombre2 = os.path.basename(ruta2).replace(".xlsx", "").replace(".xls", "")
 
@@ -988,13 +893,12 @@ def comparar_porcentajes():
         "Total alumnos": [total1, total2]
     })
 
-    # --- Ventana ---
+    # --- Ventana con scroll ---
     ventana = ctk.CTkToplevel()
     ventana.title("Comparación de Porcentajes")
     ventana.geometry("950x750")
 
-    frame = ctk.CTkFrame(ventana)
-    frame.pack(fill="both", expand=True, padx=20, pady=20)
+    frame = crear_frame_scrollable_toplevel(ventana)
 
     # --- Gráfica ---
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -1004,7 +908,6 @@ def comparar_porcentajes():
     ax.bar([i - ancho/2 for i in x], resumen["Aprobados (%)"], width=ancho, label="Aprobados (%)")
     ax.bar([i + ancho/2 for i in x], resumen["Reprobados (%)"], width=ancho, label="Reprobados (%)")
 
-    # Mostrar valores
     for i, (ap, rp) in enumerate(zip(resumen["Aprobados (%)"], resumen["Reprobados (%)"])):
         ax.text(i - ancho/2, ap + 1, f"{ap:.1f}%", ha='center', fontsize=9)
         ax.text(i + ancho/2, rp + 1, f"{rp:.1f}%", ha='center', fontsize=9)
@@ -1013,31 +916,14 @@ def comparar_porcentajes():
     ax.set_xticklabels(resumen["Archivo"], rotation=15)
     ax.set_ylabel("Porcentaje (%)")
     ax.set_title("Porcentajes de Aprobados y Reprobados")
-
-    # 🔥 Margen extra arriba para textos
     ax.set_ylim(0, 110)
-
-    # 🔥 Leyenda fuera del área de la gráfica
-    ax.legend(
-        loc="upper left",
-        bbox_to_anchor=(1.02, 1),
-        borderaxespad=0.
-    )
-
+    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0.)
     ax.grid(axis="y", linestyle="--", alpha=0.6)
     plt.tight_layout()
 
-    # --- Mostrar gráfica en Tkinter ---
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.draw()
     canvas.get_tk_widget().pack(pady=10)
-
-    def on_close():
-        plt.close(fig)
-        ventana.destroy()
-
-    ventana.protocol("WM_DELETE_WINDOW", on_close)
-
 
     # --- Tabla ---
     tabla_frame = ctk.CTkFrame(frame)
@@ -1049,11 +935,9 @@ def comparar_porcentajes():
         show="headings",
         height=3
     )
-
     tabla.heading("Aprobados (%)", text="Aprobados (%)")
     tabla.heading("Reprobados (%)", text="Reprobados (%)")
     tabla.heading("Total", text="Total alumnos")
-
     tabla.column("Aprobados (%)", anchor="center", width=150)
     tabla.column("Reprobados (%)", anchor="center", width=150)
     tabla.column("Total", anchor="center", width=150)
@@ -1063,10 +947,8 @@ def comparar_porcentajes():
                      values=(f"{resumen['Aprobados (%)'][i]:.1f}%",
                              f"{resumen['Reprobados (%)'][i]:.1f}%",
                              resumen["Total alumnos"][i]))
-
     tabla.pack(pady=10)
 
-    # --- Botones ---
     def guardar_grafica():
         ruta = filedialog.asksaveasfilename(
             defaultextension=".png",
@@ -1079,18 +961,19 @@ def comparar_porcentajes():
 
     botones = ctk.CTkFrame(frame)
     botones.pack(pady=15)
-
     ctk.CTkButton(botones, text="💾 Guardar gráfica", command=guardar_grafica).grid(row=0, column=0, padx=10)
 
+    def on_close():
+        plt.close(fig)
+        ventana.destroy()
+
+    ventana.protocol("WM_DELETE_WINDOW", on_close)
 
 
-
-
+# ---------- comparar_promedio_total ----------
 def comparar_promedio_total():
-    """Compara el promedio total (CALIF DIAG) entre dos archivos Excel,
-    mostrando gráfica, tabla resumen y permitiendo exportar resultados e imagen."""
+    """Compara el promedio total (CALIF DIAG) entre dos archivos Excel con scroll."""
 
-    # --- Seleccionar archivos ---
     ruta1 = filedialog.askopenfilename(
         title="Selecciona el primer archivo Excel",
         filetypes=[("Archivos Excel", "*.xlsx *.xls")]
@@ -1107,7 +990,6 @@ def comparar_promedio_total():
         messagebox.showinfo("Cancelado", "No se seleccionó el segundo archivo.")
         return
 
-    # --- Cargar archivos ---
     try:
         df1 = pd.read_excel(ruta1)
         df2 = pd.read_excel(ruta2)
@@ -1115,16 +997,11 @@ def comparar_promedio_total():
         messagebox.showerror("Error al leer Excel", str(e))
         return
 
-    # --- Validar columna CALIF DIAG ---
     for df in [df1, df2]:
         if "CALIF DIAG" not in df.columns:
-            messagebox.showerror(
-                "Error",
-                "Uno de los archivos no contiene la columna 'CALIF DIAG'."
-            )
+            messagebox.showerror("Error", "Uno de los archivos no contiene la columna 'CALIF DIAG'.")
             return
 
-    # --- Calcular promedios ---
     prom1 = df1["CALIF DIAG"].mean()
     prom2 = df2["CALIF DIAG"].mean()
 
@@ -1137,13 +1014,12 @@ def comparar_promedio_total():
         "Total alumnos": [len(df1), len(df2)]
     })
 
-    # --- Ventana ---
+    # --- Ventana con scroll ---
     ventana = ctk.CTkToplevel()
     ventana.title("Comparación de Promedio Total")
     ventana.geometry("900x700")
 
-    frame = ctk.CTkFrame(ventana)
-    frame.pack(fill="both", expand=True, padx=20, pady=20)
+    frame = crear_frame_scrollable_toplevel(ventana)
 
     # --- Gráfica ---
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -1151,7 +1027,6 @@ def comparar_promedio_total():
 
     ax.bar(x, resumen["Promedio total"], width=0.5, label="Promedio total")
 
-    # Mostrar etiquetas arriba de cada barra
     for i, v in enumerate(resumen["Promedio total"]):
         ax.text(i, v + 1, f"{v:.2f}", ha='center', fontsize=10)
 
@@ -1161,36 +1036,19 @@ def comparar_promedio_total():
     ax.set_title("Comparación del Promedio Total")
     ax.set_ylim(0, 100)
     ax.grid(axis="y", linestyle="--", alpha=0.6)
-
     plt.tight_layout()
 
-    # --- Mostrar gráfica en Tkinter ---
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.draw()
     canvas.get_tk_widget().pack(pady=10)
 
-    def on_close():
-        plt.close(fig)
-        ventana.destroy()
-
-    ventana.protocol("WM_DELETE_WINDOW", on_close)
-
-
-    # --- Tabla resumen ---
-
+    # --- Tabla ---
     tabla_frame = ctk.CTkFrame(frame)
     tabla_frame.pack(pady=10)
 
-    tabla = ttk.Treeview(
-        tabla_frame,
-        columns=("Promedio", "Total"),
-        show="headings",
-        height=3
-    )
-
+    tabla = ttk.Treeview(tabla_frame, columns=("Promedio", "Total"), show="headings", height=3)
     tabla.heading("Promedio", text="Promedio total")
     tabla.heading("Total", text="Total alumnos")
-
     tabla.column("Promedio", anchor="center", width=150)
     tabla.column("Total", anchor="center", width=150)
 
@@ -1198,10 +1056,8 @@ def comparar_promedio_total():
         tabla.insert("", "end",
                      values=(f"{resumen['Promedio total'][i]:.2f}",
                              resumen["Total alumnos"][i]))
-
     tabla.pack(pady=10)
 
-    # --- Botones ---
     def guardar_grafica():
         ruta = filedialog.asksaveasfilename(
             defaultextension=".png",
@@ -1212,24 +1068,21 @@ def comparar_promedio_total():
             fig.savefig(ruta, dpi=300)
             messagebox.showinfo("Guardado", f"Gráfica guardada en:\n{ruta}")
 
-    
-
     botones = ctk.CTkFrame(frame)
     botones.pack(pady=15)
-
     ctk.CTkButton(botones, text="💾 Guardar gráfica", command=guardar_grafica).grid(row=0, column=0, padx=10)
 
+    def on_close():
+        plt.close(fig)
+        ventana.destroy()
+
+    ventana.protocol("WM_DELETE_WINDOW", on_close)
 
 
-
-
-
-
+# ---------- comparar_promedios_por_carrera_dos_archivos ----------
 def comparar_promedios_por_carrera_dos_archivos():
-    """Compara el promedio final (CALIF DIAG) por carrera entre dos archivos Excel,
-       mostrando una gráfica de dispersión ordenada por carrera (0 a 100)."""
+    """Compara el promedio final por carrera entre dos archivos Excel con scroll."""
 
-    # -------- Seleccionar archivos --------
     ruta1 = filedialog.askopenfilename(
         title="Selecciona el primer archivo Excel",
         filetypes=[("Archivos Excel", "*.xlsx *.xls")]
@@ -1246,7 +1099,6 @@ def comparar_promedios_por_carrera_dos_archivos():
         messagebox.showinfo("Cancelado", "No se seleccionó el segundo archivo.")
         return
 
-    # -------- Cargar archivos --------
     try:
         df1 = pd.read_excel(ruta1)
         df2 = pd.read_excel(ruta2)
@@ -1254,7 +1106,6 @@ def comparar_promedios_por_carrera_dos_archivos():
         messagebox.showerror("Error al leer Excel", str(e))
         return
 
-    # -------- Validar columnas --------
     for df in [df1, df2]:
         if "carrera" not in df.columns:
             messagebox.showerror("Error", "Falta la columna 'carrera'.")
@@ -1263,79 +1114,49 @@ def comparar_promedios_por_carrera_dos_archivos():
             messagebox.showerror("Error", "Falta la columna 'CALIF DIAG'.")
             return
 
-    # -------- Extraer nombres de archivo --------
     nombre1 = os.path.basename(ruta1).replace(".xlsx", "").replace(".xls", "")
     nombre2 = os.path.basename(ruta2).replace(".xlsx", "").replace(".xls", "")
 
-    # -------- Calcular promedios por carrera --------
     prom1 = df1.groupby("carrera")["CALIF DIAG"].mean().reset_index()
     prom2 = df2.groupby("carrera")["CALIF DIAG"].mean().reset_index()
 
-    # -------- Unir por carrera --------
     comparacion = pd.merge(prom1, prom2, on="carrera", how="inner", suffixes=("_" + nombre1, "_" + nombre2))
-
-    # Orden alfabético
     comparacion = comparacion.sort_values(by="carrera")
 
-    # -------- Crear ventana --------
+    # --- Ventana con scroll ---
     ventana = ctk.CTkToplevel()
     ventana.title("Comparación de promedios por carrera")
     ventana.geometry("1100x800")
 
-    frame = ctk.CTkFrame(ventana)
-    frame.pack(fill="both", expand=True, padx=20, pady=20)
+    frame = crear_frame_scrollable_toplevel(ventana)
 
-    # -------- Crear gráfica de dispersión --------
+    # --- Gráfica ---
     fig, ax = plt.subplots(figsize=(12, 6))
-
     x = range(len(comparacion))
 
     ax.scatter(x, comparacion[f"CALIF DIAG_{nombre1}"], label=f"{nombre1}", s=80)
     ax.scatter(x, comparacion[f"CALIF DIAG_{nombre2}"], label=f"{nombre2}", s=80)
 
-    # Etiquetas en cada punto
     for i, row in comparacion.iterrows():
-        ax.text(
-            list(range(len(comparacion)))[i],
-            row[f"CALIF DIAG_{nombre1}"] + 1,
-            f"{row[f'CALIF DIAG_{nombre1}']:.1f}",
-            ha="center",
-            fontsize=8
-        )
-        ax.text(
-            list(range(len(comparacion)))[i],
-            row[f"CALIF DIAG_{nombre2}"] + 1,
-            f"{row[f'CALIF DIAG_{nombre2}']:.1f}",
-            ha="center",
-            fontsize=8,
-            color="red"
-        )
+        idx = list(range(len(comparacion)))[i]
+        ax.text(idx, row[f"CALIF DIAG_{nombre1}"] + 1,
+                f"{row[f'CALIF DIAG_{nombre1}']:.1f}", ha="center", fontsize=8)
+        ax.text(idx, row[f"CALIF DIAG_{nombre2}"] + 1,
+                f"{row[f'CALIF DIAG_{nombre2}']:.1f}", ha="center", fontsize=8, color="red")
 
-    # Configuración del eje X
     ax.set_xticks(x)
     ax.set_xticklabels(comparacion["carrera"], rotation=25, ha="right")
-
     ax.set_ylim(0, 100)
     ax.set_ylabel("Promedio final (CALIF DIAG)")
-    ax.set_title("Comparación de promedios por carrera ")
+    ax.set_title("Comparación de promedios por carrera")
     ax.grid(axis="y", linestyle="--", alpha=0.6)
     ax.legend()
-
     plt.tight_layout()
 
-    # -------- Mostrar gráfica en Tkinter --------
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.draw()
     canvas.get_tk_widget().pack(pady=20)
 
-    def on_close():
-        plt.close(fig)
-        ventana.destroy()
-
-    ventana.protocol("WM_DELETE_WINDOW", on_close)
-
-
-    # -------- Función para guardar imagen --------
     def guardar_grafica():
         ruta_guardado = filedialog.asksaveasfilename(
             defaultextension=".png",
@@ -1346,24 +1167,21 @@ def comparar_promedios_por_carrera_dos_archivos():
             fig.savefig(ruta_guardado, dpi=300)
             messagebox.showinfo("Guardado", f"Gráfica guardada en:\n{ruta_guardado}")
 
-    # -------- Función para exportar Excel --------
-    
-
-    # -------- Botones --------
     botones = ctk.CTkFrame(frame)
     botones.pack(pady=10)
-
     ctk.CTkButton(botones, text="💾 Guardar gráfica", command=guardar_grafica).grid(row=0, column=0, padx=10)
 
+    def on_close():
+        plt.close(fig)
+        ventana.destroy()
+
+    ventana.protocol("WM_DELETE_WINDOW", on_close)
 
 
-
-
+# ---------- comparar_promedio_final_por_carrera ----------
 def comparar_promedio_final_por_carrera():
-    """Lee un archivo Excel y grafica el promedio final (CALIF DIAG) por carrera en una escala de 0 a 100,
-       ordenado alfabéticamente por carrera."""
+    """Lee un archivo Excel y grafica el promedio final por carrera con scroll."""
 
-    # Selección del archivo
     ruta = filedialog.askopenfilename(
         title="Selecciona el archivo Excel",
         filetypes=[("Archivos Excel", "*.xlsx *.xls")]
@@ -1378,7 +1196,6 @@ def comparar_promedio_final_por_carrera():
         messagebox.showerror("Error al leer Excel", str(e))
         return
 
-    # Validar columnas
     if "carrera" not in df.columns:
         messagebox.showerror("Error", "El archivo no contiene la columna 'carrera'.")
         return
@@ -1387,63 +1204,43 @@ def comparar_promedio_final_por_carrera():
         messagebox.showerror("Error", "El archivo no contiene la columna 'CALIF DIAG'.")
         return
 
-    # Nombre base del archivo
     nombre_archivo = os.path.basename(ruta).replace(".xlsx", "").replace(".xls", "")
 
-    # Calcular promedio final por carrera
     promedios = df.groupby("carrera")["CALIF DIAG"].mean().reset_index()
-
-    # ORDENAR ALFABÉTICAMENTE LAS CARRERAS
     promedios = promedios.sort_values(by="carrera", ascending=True)
 
-    # Crear ventana
+    # --- Ventana con scroll ---
     ventana = ctk.CTkToplevel()
     ventana.title(f"Promedio final por carrera - {nombre_archivo}")
     ventana.geometry("1100x800")
 
-    frame = ctk.CTkFrame(ventana)
-    frame.pack(fill="both", expand=True, padx=20, pady=20)
+    frame = crear_frame_scrollable_toplevel(ventana)
 
-    # Crear gráfica
+    # --- Gráfica ---
     fig, ax = plt.subplots(figsize=(10, 6))
 
     barras = ax.bar(promedios["carrera"], promedios["CALIF DIAG"], color="mediumslateblue")
 
-    # Etiquetas arriba de cada barra (controladas)
     for barra, (_, row) in zip(barras, promedios.iterrows()):
         altura = barra.get_height()
         ax.text(
             barra.get_x() + barra.get_width() / 2,
-            altura + 1,                      # ligeramente encima sin separarse
+            altura + 1,
             f"{altura:.2f}",
-            ha="center",
-            va="bottom",
-            fontsize=9
+            ha="center", va="bottom", fontsize=9
         )
 
-    # Escala fija 0–100
     ax.set_ylim(0, 100)
-
     ax.set_xticklabels(promedios["carrera"], rotation=25, ha="right")
-    ax.set_ylabel("Promedio final (CALIF DIAG)")
+    ax.set_ylabel("Promedio final")
     ax.set_title(f"Promedio final por carrera ({nombre_archivo})")
     ax.grid(axis="y", linestyle="--", alpha=0.6)
-
     plt.tight_layout()
 
-    # Mostrar gráfica en Tkinter
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.draw()
     canvas.get_tk_widget().pack(pady=20)
 
-    def on_close():
-        plt.close(fig)
-        ventana.destroy()
-
-    ventana.protocol("WM_DELETE_WINDOW", on_close)
-
-
-    # --- Exportar imagen ---
     def guardar_grafica():
         ruta_guardado = filedialog.asksaveasfilename(
             defaultextension=".png",
@@ -1454,72 +1251,54 @@ def comparar_promedio_final_por_carrera():
             fig.savefig(ruta_guardado, dpi=300)
             messagebox.showinfo("Guardado", f"Gráfica guardada en:\n{ruta_guardado}")
 
-    # --- Exportar Excel ---
-    
-
-    # --- Botones ---
     botones = ctk.CTkFrame(frame)
     botones.pack(pady=10)
-
     ctk.CTkButton(botones, text="💾 Guardar gráfica", command=guardar_grafica).grid(row=0, column=0, padx=10)
 
+    def on_close():
+        plt.close(fig)
+        ventana.destroy()
 
-
-
-
-
+    ventana.protocol("WM_DELETE_WINDOW", on_close)
 
 
 def combinar_diag_con_final():
-    
-
-    # Seleccionar el primer archivo
     ruta_1 = filedialog.askopenfilename(title="Selecciona el Excel diagnóstico combinado calificado", filetypes=[("Excel files", "*.xlsx *.xls")])
     if not ruta_1:
         messagebox.showwarning("Archivo faltante", "No se seleccionó el primer archivo.")
         return
 
-    # Seleccionar el segundo archivo
     ruta_2 = filedialog.askopenfilename(title="Selecciona el Excel final combinado calificado", filetypes=[("Excel files", "*.xlsx *.xls")])
     if not ruta_2:
         messagebox.showwarning("Archivo faltante", "No se seleccionó el segundo archivo.")
         return
 
     try:
-        # Cargar ambos archivos
         df1 = pd.read_excel(ruta_1)
         df2 = pd.read_excel(ruta_2)
 
-        # Convertir NUMERO DE CONTROL a formato numérico
         df1["NUMERO DE CONTROL"] = pd.to_numeric(df1["NUMERO DE CONTROL"], errors="coerce")
         df2["NUMERO DE CONTROL"] = pd.to_numeric(df2["NUMERO DE CONTROL"], errors="coerce")
 
-        # Columnas clave para hacer el merge
         columnas_clave = ["NUMERO DE CONTROL", "carrera", "ppgrupo", "NOMBRE COMPLETO", "turno"]
         for col in columnas_clave:
             if col not in df1.columns or col not in df2.columns:
                 messagebox.showerror("Error", f"Falta la columna '{col}' en uno de los archivos.")
                 return
 
-        # Separar columnas no clave y renombrarlas para evitar colisiones
         df1_extra = df1.drop(columns=columnas_clave).add_prefix("DIAG_")
         df2_extra = df2.drop(columns=columnas_clave).add_prefix("FINAL_")
 
-        # Unir columnas clave con sus respectivas columnas extra
         df1_base = df1[columnas_clave].copy()
         df2_base = df2[columnas_clave].copy()
 
         df1_renombrado = pd.concat([df1_base, df1_extra], axis=1)
         df2_renombrado = pd.concat([df2_base, df2_extra], axis=1)
 
-        # Combinar ambos DataFrames por columnas clave
         df_combinado = pd.merge(df1_renombrado, df2_renombrado, on=columnas_clave, how="outer")
-
-        # Agrupar por NUMERO DE CONTROL y conservar la primera fila con datos no nulos
         df_combinado.sort_values(by=columnas_clave, inplace=True)
         df_final = df_combinado.groupby("NUMERO DE CONTROL", as_index=False).first()
 
-        # Guardar el archivo combinado
         ruta_guardado = filedialog.asksaveasfilename(title="Guardar archivo combinado", defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")])
         if ruta_guardado:
             df_final.to_excel(ruta_guardado, index=False)
@@ -1531,12 +1310,7 @@ def combinar_diag_con_final():
         messagebox.showerror("Error", f"Ocurrió un problema al combinar los archivos:\n{str(e)}")
 
 
-
-
 def combinar_combinado_completo_con_base_datos():
-   
-
-    # Seleccionar el archivo final (df2)
     ruta_2 = filedialog.askopenfilename(
         title="Selecciona el Excel final combinado calificado",
         filetypes=[("Excel files", "*.xlsx *.xls")]
@@ -1546,40 +1320,29 @@ def combinar_combinado_completo_con_base_datos():
         return
 
     try:
-        # Cargar archivos
         df1 = base_datos
         df2 = pd.read_excel(ruta_2)
 
-        # Renombrar 'ficha' a 'NUM_CONTROL' en df1
         if "ficha" not in df1.columns:
             messagebox.showerror("Error", "El primer archivo no contiene la columna 'ficha'.")
             return
         df1 = df1.rename(columns={"ficha": "NUMERO DE CONTROL"})
 
         df1['entidad_procedencia'] = pd.to_numeric(df1['entidad_procedencia'], errors='coerce')
-
-        # Convertir NUM_CONTROL a numérico
-        
         df1["NUMERO DE CONTROL"] = pd.to_numeric(df1["NUMERO DE CONTROL"], errors="coerce")
         df2["NUMERO DE CONTROL"] = pd.to_numeric(df2["NUMERO DE CONTROL"], errors="coerce")
 
-        
-
-        # Verificar que df2 tenga las columnas clave
         columnas_clave = ["NUMERO DE CONTROL", "carrera", "ppgrupo", "NOMBRE COMPLETO", "turno"]
         for col in columnas_clave:
             if col not in df2.columns:
                 messagebox.showerror("Error", f"Falta la columna '{col}' en el segundo archivo.")
                 return
 
-        # Evitar duplicación de columnas clave en el merge
         columnas_df2 = [col for col in df2.columns if col != "NUMERO DE CONTROL"]
 
-        # Realizar merge con df1 como base y df2 al final
         df_combinado = pd.merge(df1, df2[columnas_clave + [col for col in columnas_df2 if col not in columnas_clave]],
                                 on="NUMERO DE CONTROL", how="left")
 
-        # Guardar resultado
         ruta_guardado = filedialog.asksaveasfilename(
             title="Guardar archivo combinado",
             defaultextension=".xlsx",
@@ -1595,14 +1358,8 @@ def combinar_combinado_completo_con_base_datos():
         messagebox.showerror("Error", f"Ocurrió un problema al combinar los archivos:\n{str(e)}")
 
 
-
-
-
-
 def cargar_formateador(tipo_form):
-    # ======== Función para procesar CSV ========
     def procesar_csv():
-        # Seleccionar archivo CSV
         csv_path = filedialog.askopenfilename(
             title="Selecciona el archivo CSV",
             filetypes=[("CSV files", "*.csv")]
@@ -1612,48 +1369,45 @@ def cargar_formateador(tipo_form):
             messagebox.showerror("Error", "No se seleccionó ningún archivo CSV.")
             return False
 
-        # Leer el CSV
         df = pd.read_csv(csv_path, sep=';')
 
         print("Columnas disponibles en el CSV:")
         print(df.columns.tolist())
 
         df = df.rename(columns={
-            df.columns[0]: "File name",          # Columna 0
-            df.columns[1]: "GRUPO.1",            # Columna 1
-            df.columns[2]: "GRUPO.2",            # Columna 2
-            df.columns[3]: "GRUPO.3",            # Columna 3
-            df.columns[4]: "P11",                # Columna 4
-            df.columns[5]: "P12",                # Columna 5
-            df.columns[6]: "P13",                # Columna 6
-            df.columns[7]: "P14",                # Columna 7
-            df.columns[8]: "P15",                # Columna 8
-            df.columns[9]: "P16",                # Columna 9
-            df.columns[10]: "P17",               # Columna 10
-            df.columns[11]: "P18",               # Columna 11
-            df.columns[12]: "P19",               # Columna 12
-            df.columns[13]: "P20",               # Columna 13
-            df.columns[14]: "P1",                # Columna 14
-            df.columns[15]: "P2",                # Columna 15
-            df.columns[16]: "P3",                # Columna 16
-            df.columns[17]: "P4",                # Columna 17
-            df.columns[18]: "P5",                # Columna 18
-            df.columns[19]: "P6",                # Columna 19
-            df.columns[20]: "P7",                # Columna 20
-            df.columns[21]: "P8",                # Columna 21
-            df.columns[22]: "P9",                # Columna 22
-            df.columns[23]: "P10",               # Columna 23
-            df.columns[24]: "Tipo de Examen",    # Columna 24
-            df.columns[25]: "NUMERO DE CONTROL.1", # Columna 25
-            df.columns[26]: "NUMERO DE CONTROL.2", # Columna 26
-            df.columns[27]: "NUMERO DE CONTROL.3", # Columna 27
-            df.columns[28]: "NUMERO DE CONTROL.4"  # Columna 28
+            df.columns[0]: "File name",
+            df.columns[1]: "GRUPO.1",
+            df.columns[2]: "GRUPO.2",
+            df.columns[3]: "GRUPO.3",
+            df.columns[4]: "NUMERO DE CONTROL.1",
+            df.columns[5]: "NUMERO DE CONTROL.2",
+            df.columns[6]: "NUMERO DE CONTROL.3",
+            df.columns[7]: "NUMERO DE CONTROL.4",
+            df.columns[8]: "P1",
+            df.columns[9]: "P2",
+            df.columns[10]: "P3",
+            df.columns[11]: "P4",
+            df.columns[12]: "P5",
+            df.columns[13]: "P6",
+            df.columns[14]: "P7",
+            df.columns[15]: "P8",
+            df.columns[16]: "P9",
+            df.columns[17]: "P10",
+            df.columns[18]: "P11",
+            df.columns[19]: "P12",
+            df.columns[20]: "P13",
+            df.columns[21]: "P14",
+            df.columns[22]: "P15",
+            df.columns[23]: "P16",
+            df.columns[24]: "P17",
+            df.columns[25]: "P18",
+            df.columns[26]: "P19",
+            df.columns[27]: "P20",
+            df.columns[28]: "Tipo de Examen"
         })
-        
-        # Eliminar columnas innecesarias
+
         df = df.drop(columns=['File name'], errors='ignore')
-        
-        # Combinar columnas de control
+
         df['NUMERO DE CONTROL'] = (
             df['NUMERO DE CONTROL.1'].fillna('').astype(str) +
             df['NUMERO DE CONTROL.2'].fillna('').astype(str) +
@@ -1667,66 +1421,44 @@ def cargar_formateador(tipo_form):
         )
         df['NUMERO DE CONTROL'] = pd.to_numeric(df['NUMERO DE CONTROL'], errors='coerce')
 
-       
         mapa_letras_grupos = {
-            'A': 'A',
-            'B': 'B',
-            'C': 'C',
-            'D': 'D',
-            'E': 'E',
-            'F': 'G',
-            'G': 'I',
-            'H': 'L',
-            'I': 'M',
-            'J': 'N',
-            'K': 'O',
-            'L': 'P',
-            'M': 'S'
+            'A': 'A', 'B': 'B', 'C': 'C', 'D': 'D', 'E': 'E',
+            'F': 'G', 'G': 'I', 'H': 'L', 'I': 'M', 'J': 'N',
+            'K': 'O', 'L': 'P', 'M': 'S'
         }
 
-        #Reemplazar valores de semestre por P(propedeutico)
         df['GRUPO.2'] = 'P'
 
-        # Combinar columnas de GRUPO
         df['GRUPO'] = (
             df['GRUPO.1'].fillna('').astype(str) +
             df['GRUPO.2'].fillna('').astype(str) +
-            df['GRUPO.3'].fillna('').astype(str) 
+            df['GRUPO.3'].fillna('').astype(str)
         )
 
         df['GRUPO'] = df['GRUPO'].str.replace('|', '', regex=False)
-
-        # Reemplazar valores según el mapa
         df['GRUPO'] = df['GRUPO'].map(mapa_letras_grupos).fillna(df['GRUPO'])
 
-        
-
-        # Agregar columnas adicionales
         df['carrera'] = ''
         df['ppgrupo'] = ''
         df['NOMBRE COMPLETO'] = ''
         df['CALIF DIAG'] = ''
 
-        # Pedir valores al usuario
+        if base_datos is None:
+            messagebox.showerror("Error", "No se cargo una base de datos.")
+            return False
+
         carrera = seleccionar_carrera()
-        
 
         df['carrera'] = carrera
         df['ppgrupo'] = df['GRUPO']
 
-        # Reordenar columnas
         columnas_finales = [
-            'carrera',
-            'ppgrupo',
-            'NUMERO DE CONTROL',
-            'NOMBRE COMPLETO',
-            'Tipo de Examen',
-            'CALIF DIAG'
+            'carrera', 'ppgrupo', 'NUMERO DE CONTROL', 'NOMBRE COMPLETO',
+            'Tipo de Examen', 'CALIF DIAG'
         ] + [f'P{i}' for i in range(1, 21)]
         columnas_existentes = [col for col in columnas_finales if col in df.columns]
         df = df[columnas_existentes]
 
-        # Seleccionar ubicación para guardar el Excel
         excel_path = filedialog.asksaveasfilename(
             title="Guardar archivo Excel",
             defaultextension=".xlsx",
@@ -1737,14 +1469,11 @@ def cargar_formateador(tipo_form):
             messagebox.showerror("Error", "No se seleccionó ubicación para guardar el archivo.")
             return False
 
-        # Guardar como Excel
         df.to_excel(excel_path, index=False, engine='openpyxl')
 
-        # Mostrar mensaje combinado
         continuar = messagebox.askyesno("Proceso completado", f"Archivo guardado como:\n{excel_path}\n\n¿Deseas procesar otro archivo?")
         return continuar
 
-    # ======== Función para procesar Excel ========
     def procesar_excel():
         excel_path = filedialog.askopenfilename(
             title="Selecciona el archivo Excel",
@@ -1777,6 +1506,10 @@ def cargar_formateador(tipo_form):
         df['ppgrupo'] = ''
         df['NOMBRE COMPLETO'] = ''
 
+        if base_datos is None:
+            messagebox.showerror("Error", "No se cargo una base de datos.")
+            return False
+
         carrera = seleccionar_carrera()
         ppgrupo = tk.simpledialog.askstring("Entrada", "Ingresa el grupo:")
 
@@ -1805,9 +1538,7 @@ def cargar_formateador(tipo_form):
         )
         return continuar
 
-    # ======== Función para seleccionar carrera ========
     def seleccionar_carrera():
-
         if base_datos is not None:
             carrera = base_datos["carrera"].dropna().astype(str).str.strip().unique().tolist()
             carrera = sorted(carrera)
@@ -1832,7 +1563,6 @@ def cargar_formateador(tipo_form):
         win.wait_window()
         return carrera_var.get()
 
-    # ======== Lógica principal ========
     if tipo_form == 1:
         while True:
             repetir = procesar_csv()
@@ -1843,25 +1573,3 @@ def cargar_formateador(tipo_form):
             repetir2 = procesar_excel()
             if not repetir2:
                 break
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

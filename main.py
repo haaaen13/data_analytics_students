@@ -200,7 +200,7 @@ def cargar_excel_respuestas():
 
     messagebox.showinfo(
         "Aviso",
-        "Abrir archivo de concentrado de alumnos"
+        "Abrir archivo con las respuestas correctas"
     )
 
     ruta_archivo = filedialog.askopenfilename(

@@ -8,12 +8,17 @@ from PIL import Image, ImageEnhance
 def choose_file(title="Selecciona un archivo", filetypes=(("Todos los archivos", "."),)):
     root = tk.Tk()
     root.withdraw()
-    return filedialog.askopenfilename(title=title, filetypes=filetypes)
+    filename=filedialog.askopenfilename(title=title, filetypes=filetypes)
+    root.destroy()
+    return filename
 
 def choose_directory(title="Selecciona una carpeta"):
     root = tk.Tk()
     root.withdraw()
-    return filedialog.askdirectory(title=title)
+    filename=filedialog.askdirectory(title=title)
+    root.destroy()
+    return filename
+
 
 def procesar_imagenes(images_dir):
     """
@@ -105,8 +110,14 @@ def run_formscanner_workflow():
     while True:
         formScanner_executable = r"C:\Program Files (x86)\FormScanner_1.1.4\lib\formscanner-main-1.1.4.jar"
         formScanner_template   = choose_file("Selecciona el archivo template (.xtmpl)", [("XTMPL files", "*.xtmpl")])
+        if not formScanner_template:
+            messagebox.showerror("Error", "No se cargó un formato.")
+            return False
+    
         images_dir             = choose_directory("Selecciona la carpeta con las imágenes")
-
+        if not images_dir:
+            messagebox.showerror("Error", "No se cargó una carpeta.")
+            return False
         # Procesar imágenes antes de pasarlas a FormScanner
         procesar_imagenes(images_dir)
 

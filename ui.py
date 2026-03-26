@@ -106,7 +106,6 @@ def mostrar_grafico(nombre_columna, error_label, frame_grafico):
     else:
         error_label.configure(text="")
 
-    # Libera recursos del grafico previo antes de crear uno nuevo.
     if canvas_actual is not None:
         canvas_actual.get_tk_widget().destroy()
         canvas_actual = None
@@ -116,8 +115,17 @@ def mostrar_grafico(nombre_columna, error_label, frame_grafico):
 
     conteo = main.base_datos[nombre_columna].value_counts().head(20)
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.bar(conteo.index.astype(str), conteo.values, color='skyblue')
+    barras = ax.bar(conteo.index.astype(str), conteo.values, color='skyblue')
     fig_actual = fig
+
+    # ── Número exacto sobre cada barra ───────────────────────────────────────
+    for barra, valor in zip(barras, conteo.values):
+        ax.text(
+            barra.get_x() + barra.get_width() / 2,
+            barra.get_height() + 0.5,
+            str(valor),
+            ha="center", va="bottom", fontsize=9, fontweight="bold"
+        )
 
     ax.set_title(f'Conteo de registros por "{nombre_columna}"')
     ax.set_xlabel(nombre_columna)
@@ -133,7 +141,6 @@ def mostrar_grafico(nombre_columna, error_label, frame_grafico):
     canvas_actual = FigureCanvasTkAgg(fig, master=frame_grafico)
     canvas_actual.draw()
     canvas_actual.get_tk_widget().pack()
-
 
 def exportar_grafico(error_label_exportar):
     if fig_actual is None:
@@ -420,6 +427,9 @@ def show_page(page_name):
 
         ctk.CTkButton(frame_analisis, text="🔵🟠 Comparar promedios totales de 2 archivos",
               command=main.comparar_promedio_total).pack(pady=8)
+        
+        ctk.CTkButton(frame_analisis, text="🔵🟠 ver prepas",
+              command=main.comparar_promedio_por_modelo).pack(pady=8)
 
 
 

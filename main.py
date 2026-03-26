@@ -362,14 +362,14 @@ def analizar_datos(estado='aciertos'):
     if excel_combinado is None:
         messagebox.showerror("Error", "Primero carga el archivo combinado para análisis.")
         return
-
+ 
     ventana_analisis = tk.Toplevel()
     ventana_analisis.title("Analíticas del Examen")
     ventana_analisis.geometry("1300x850")
-
+ 
     frame_scroll = ctk.CTkScrollableFrame(ventana_analisis, label_text="Resultados Analíticos")
     frame_scroll.pack(fill="both", expand=True, padx=20, pady=20)
-
+ 
     ctk.CTkLabel(frame_scroll, text="Filtrar por carrera (opcional):").pack(pady=5)
     if "carrera" in excel_combinado.columns:
         carreras = excel_combinado["carrera"].dropna().astype(str).str.strip().unique().tolist()
@@ -379,12 +379,12 @@ def analizar_datos(estado='aciertos'):
     combo_carrera = ttk.Combobox(frame_scroll, values=["(Todas)"] + carreras, state="readonly")
     combo_carrera.set("(Todas)")
     combo_carrera.pack(pady=5)
-
+ 
     ctk.CTkLabel(frame_scroll, text="Filtrar por grupo (opcional):").pack(pady=5)
     combo_grupo = ttk.Combobox(frame_scroll, values=["(Todos)"], state="readonly")
     combo_grupo.set("(Todos)")
     combo_grupo.pack(pady=5)
-
+ 
     def actualizar_grupos(event=None):
         carrera_sel = combo_carrera.get()
         if carrera_sel == "(Todas)" or "ppgrupo" not in excel_combinado.columns:
@@ -397,94 +397,113 @@ def analizar_datos(estado='aciertos'):
             grupos_filtrados = sorted(grupos_filtrados)
             combo_grupo["values"] = ["(Todos)"] + grupos_filtrados if grupos_filtrados else ["(Todos)"]
             combo_grupo.set("(Todos)")
-
+ 
     combo_carrera.bind("<<ComboboxSelected>>", actualizar_grupos)
-
+ 
     frame_graficas = ctk.CTkFrame(frame_scroll)
     frame_graficas.pack(fill="both", expand=True, pady=20)
-
+ 
     preguntas_esperadas = [f"P{i}_correcta" for i in range(1, 21)]
     x = range(1, 21)
-
+ 
     figs_generadas = {}
-
+ 
     def generar_graficas():
         nonlocal figs_generadas
         for fig in figs_generadas.values():
             plt.close(fig)
         figs_generadas = {}
-
+ 
         for widget in frame_graficas.winfo_children():
             widget.destroy()
-
+ 
         df = excel_combinado.copy()
-
+ 
         carrera_sel = combo_carrera.get()
         grupo_sel = combo_grupo.get()
-
+ 
         if carrera_sel != "(Todas)" and "carrera" in df.columns:
             df = df[df["carrera"].astype(str).str.strip() == str(carrera_sel).strip()]
         if grupo_sel != "(Todos)" and "ppgrupo" in df.columns:
             df = df[df["ppgrupo"].astype(str).str.strip() == str(grupo_sel).strip()]
-
+ 
         for col in preguntas_esperadas:
             if col not in df.columns:
                 df[col] = float("nan")
-
+ 
         titulo_modo = "Aciertos" if estado == "aciertos" else "Errores"
-
+ 
         if estado == "aciertos":
             aciertos = df[preguntas_esperadas].mean().reindex(preguntas_esperadas)
         else:
             errores = 1 - df[preguntas_esperadas].mean()
             errores = errores.reindex(preguntas_esperadas)
-
-        fig1 = plt.figure(figsize=(10, 6))
-
+ 
+        fig1, ax1 = plt.subplots(figsize=(10, 6))
+ 
         if estado == 'aciertos':
-            plt.scatter(x, aciertos.values * 100, color="skyblue")
+            valores = aciertos.values * 100
         else:
-            plt.scatter(x, errores.values * 100, color="skyblue")
-        plt.title(f"Porcentaje de {titulo_modo} por pregunta")
-        plt.xlabel("Pregunta")
-        plt.ylabel(f"% de {titulo_modo}")
-        plt.xticks(x, [f"P{i}" for i in x])
-        plt.xlim(0.5, 20.5)
-        plt.ylim(0, 100)
-        plt.grid(True)
+            valores = errores.values * 100
+ 
+        ax1.scatter(x, valores, color="skyblue", zorder=3)
+ 
+        for xi, yi in zip(x, valores):
+            ax1.text(
+                xi, yi + 2,
+                f"{yi:.1f}%",
+                ha="center", va="bottom", fontsize=8, fontweight="bold"
+            )
+ 
+        ax1.set_title(f"Porcentaje de {titulo_modo} por pregunta")
+        ax1.set_xlabel("Pregunta")
+        ax1.set_ylabel(f"% de {titulo_modo}")
+        ax1.set_xticks(x)
+        ax1.set_xticklabels([f"P{i}" for i in x])
+        ax1.set_xlim(0.5, 20.5)
+        ax1.set_ylim(0, 110)
+        ax1.grid(True)
         plt.tight_layout()
-
+ 
         fig1 = plt.gcf()
-
+ 
         canvas1 = FigureCanvasTkAgg(fig1, master=frame_graficas)
         canvas1.draw()
         canvas1.get_tk_widget().pack(pady=20)
-
+ 
         figs_generadas[titulo_modo] = fig1
-
+ 
         if "carrera" in df.columns and "CALIFICACION DIAG" in df.columns:
             prom = df.groupby(df["carrera"].astype(str).str.strip())["CALIFICACION DIAG"].mean().sort_values(ascending=False)
-
-            fig2 = plt.figure(figsize=(10, 6))
-            prom.plot(kind="bar", color="skyblue")
-            plt.title("Promedio de calificación diagnóstica por carrera")
-            plt.xlabel("Carrera")
-            plt.ylabel("Promedio")
-            plt.xticks(rotation=45, ha="right")
-            plt.ylim(0, 100)
+ 
+            fig2, ax2 = plt.subplots(figsize=(10, 6))
+            barras2 = ax2.bar(prom.index, prom.values, color="skyblue")
+ 
+            for barra, valor in zip(barras2, prom.values):
+                ax2.text(
+                    barra.get_x() + barra.get_width() / 2,
+                    barra.get_height() + 0.8,
+                    f"{valor:.2f}",
+                    ha="center", va="bottom", fontsize=9, fontweight="bold"
+                )
+ 
+            ax2.set_title("Promedio de calificación diagnóstica por carrera")
+            ax2.set_xlabel("Carrera")
+            ax2.set_ylabel("Promedio")
+            ax2.set_xticklabels(prom.index, rotation=45, ha="right")
+            ax2.set_ylim(0, 100)
             plt.tight_layout()
-
+ 
             canvas2 = FigureCanvasTkAgg(fig2, master=frame_graficas)
             canvas2.draw()
             canvas2.get_tk_widget().pack(pady=20)
-
+ 
             figs_generadas["promedios"] = fig2
-
     def guardar_graficas():
         if not figs_generadas:
             messagebox.showwarning("Aviso", "Primero genera las gráficas.")
             return
-
+ 
         for nombre, fig in figs_generadas.items():
             ruta = filedialog.asksaveasfilename(
                 title=f"Guardar gráfica: {nombre}",
@@ -492,32 +511,38 @@ def analizar_datos(estado='aciertos'):
                 filetypes=[("Imagen PNG", "*.png")],
                 initialfile=f"{nombre}.png"
             )
-
+ 
             if not ruta:
                 continue
-
+ 
             fig.savefig(ruta, dpi=300, bbox_inches="tight")
-
+ 
     boton_filtrar = ctk.CTkButton(frame_scroll, text="🔍 Aplicar filtros y generar gráficas", command=generar_graficas)
     boton_filtrar.pack(pady=10)
-
+ 
     boton_guardar = ctk.CTkButton(frame_scroll, text="💾 Guardar gráficas en PNG", command=guardar_graficas)
     boton_guardar.pack(pady=10)
-
+ 
     def on_close():
         for fig in figs_generadas.values():
             plt.close(fig)
         ventana_analisis.destroy()
-
+ 
     ventana_analisis.protocol("WM_DELETE_WINDOW", on_close)
-
+ 
     generar_graficas()
+
+
+
+
+
+
 
 
 # ---------- analizar_datos2 (comparativo entre 2 archivos) ----------
 def analizar_datos2(modo="aciertos"):
     """Comparador de dos archivos Excel por grupo (ppgrupo)."""
-
+ 
     ruta1 = filedialog.askopenfilename(
         title="Selecciona el primer archivo Excel",
         filetypes=[("Archivos Excel", "*.xlsx *.xls")]
@@ -525,7 +550,7 @@ def analizar_datos2(modo="aciertos"):
     if not ruta1:
         messagebox.showinfo("Cancelado", "No se seleccionó el primer archivo.")
         return
-
+ 
     ruta2 = filedialog.askopenfilename(
         title="Selecciona el segundo archivo Excel",
         filetypes=[("Archivos Excel", "*.xlsx *.xls")]
@@ -533,79 +558,79 @@ def analizar_datos2(modo="aciertos"):
     if not ruta2:
         messagebox.showinfo("Cancelado", "No se seleccionó el segundo archivo.")
         return
-
+ 
     try:
         excel1 = pd.read_excel(ruta1)
         excel2 = pd.read_excel(ruta2)
     except Exception as e:
         messagebox.showerror("Error al leer Excel", str(e))
         return
-
+ 
     nombre1 = os.path.basename(ruta1).replace(".xlsx", "").replace(".xls", "")
     nombre2 = os.path.basename(ruta2).replace(".xlsx", "").replace(".xls", "")
-
+ 
     ventana_comp = tk.Toplevel()
     titulo_modo = "Aciertos" if modo == "aciertos" else "Errores"
     ventana_comp.title(f"Comparador de Resultados— {titulo_modo}")
     ventana_comp.geometry("1300x850")
-
+ 
     frame_scroll = ctk.CTkScrollableFrame(
         ventana_comp,
         label_text="Comparación de grupos o archivos"
     )
     frame_scroll.pack(fill="both", expand=True, padx=20, pady=20)
-
+ 
     ctk.CTkLabel(frame_scroll, text=f"Grupo en {nombre1}:").pack(pady=5)
     grupos1 = sorted(excel1["ppgrupo"].dropna().astype(str).str.strip().unique().tolist()) \
               if "ppgrupo" in excel1.columns else []
     combo_grupo1 = ttk.Combobox(frame_scroll, values=["(Todos)"] + grupos1)
     combo_grupo1.set("(Todos)")
     combo_grupo1.pack(pady=5)
-
+ 
     ctk.CTkLabel(frame_scroll, text=f"Grupo en {nombre2}:").pack(pady=5)
     grupos2 = sorted(excel2["ppgrupo"].dropna().astype(str).str.strip().unique().tolist()) \
               if "ppgrupo" in excel2.columns else []
     combo_grupo2 = ttk.Combobox(frame_scroll, values=["(Todos)"] + grupos2)
     combo_grupo2.set("(Todos)")
     combo_grupo2.pack(pady=5)
-
+ 
     frame_graficas = ctk.CTkFrame(frame_scroll)
     frame_graficas.pack(fill="both", expand=True, pady=20)
-
+ 
     preguntas = [f"P{i}_correcta" for i in range(1, 21)]
     x = range(1, 21)
     fig_comparacion_actual = None
     fig_aprob_actual = None
-
+ 
     def generar_comparacion():
         nonlocal fig_comparacion_actual, fig_aprob_actual
-
+ 
         if fig_comparacion_actual is not None:
             plt.close(fig_comparacion_actual)
             fig_comparacion_actual = None
         if fig_aprob_actual is not None:
             plt.close(fig_aprob_actual)
             fig_aprob_actual = None
-
+ 
         for w in frame_graficas.winfo_children():
             w.destroy()
-
+ 
         grupo1 = combo_grupo1.get()
         grupo2 = combo_grupo2.get()
-
+ 
         df1 = excel1.copy()
         df2 = excel2.copy()
-
+ 
         if grupo1 != "(Todos)" and "ppgrupo" in df1.columns:
             df1 = df1[df1["ppgrupo"].astype(str).str.strip() == grupo1]
         if grupo2 != "(Todos)" and "ppgrupo" in df2.columns:
             df2 = df2[df2["ppgrupo"].astype(str).str.strip() == grupo2]
-
+ 
         for df in [df1, df2]:
             for col in preguntas:
                 if col not in df.columns:
                     df[col] = float("nan")
-
+ 
         if modo == "aciertos":
             e1 = df1[preguntas].mean() * 100
             e2 = df2[preguntas].mean() * 100
@@ -616,52 +641,69 @@ def analizar_datos2(modo="aciertos"):
             e2 = (1 - df2[preguntas].mean()) * 100
             titulo = "Comparación de errores por pregunta"
             ylabel = "% de errores"
-
-        plt.figure(figsize=(10, 6))
-        plt.plot(x, e1.values, marker="o", linestyle="--", label=f"{nombre1} - {grupo1}")
-        plt.plot(x, e2.values, marker="o", linestyle="--", label=f"{nombre2} - {grupo2}")
-
-        plt.title(titulo)
-        plt.xlabel("Pregunta")
-        plt.ylabel(ylabel)
-        plt.xticks(x, [f"P{i}" for i in x])
-        plt.ylim(0, 100)
-        plt.grid(True)
-        plt.legend()
+ 
+        fig_comp, ax_comp = plt.subplots(figsize=(10, 6))
+        ax_comp.plot(x, e1.values, marker="o", linestyle="--", label=f"{nombre1} - {grupo1}")
+        ax_comp.plot(x, e2.values, marker="o", linestyle="--", label=f"{nombre2} - {grupo2}")
+ 
+        for xi, yi in zip(x, e1.values):
+            ax_comp.text(xi, yi + 1.5, f"{yi:.1f}%", ha="center", va="bottom", fontsize=7, fontweight="bold")
+        for xi, yi in zip(x, e2.values):
+            ax_comp.text(xi, yi - 3.5, f"{yi:.1f}%", ha="center", va="top", fontsize=7, fontweight="bold")
+ 
+        ax_comp.set_title(titulo)
+        ax_comp.set_xlabel("Pregunta")
+        ax_comp.set_ylabel(ylabel)
+        ax_comp.set_xticks(x)
+        ax_comp.set_xticklabels([f"P{i}" for i in x])
+        ax_comp.set_ylim(0, 110)
+        ax_comp.grid(True)
+        ax_comp.legend()
         plt.tight_layout()
-
-        fig_comparacion = plt.gcf()
+ 
+        fig_comparacion = fig_comp
         fig_comparacion_actual = fig_comparacion
-
+ 
         canvas1 = FigureCanvasTkAgg(fig_comparacion, master=frame_graficas)
         canvas1.draw()
         canvas1.get_tk_widget().pack(pady=20)
-
+ 
         if "CALIFICACION DIAG" in df1.columns and "CALIFICACION DIAG" in df2.columns:
             aprob1 = (df1["CALIFICACION DIAG"] >= 60).sum()
             reprob1 = (df1["CALIFICACION DIAG"] < 60).sum()
             aprob2 = (df2["CALIFICACION DIAG"] >= 60).sum()
             reprob2 = (df2["CALIFICACION DIAG"] < 60).sum()
-
+ 
             df_aprob = pd.DataFrame({
                 "Archivo": [nombre1, nombre1, nombre2, nombre2],
                 "Resultado": ["Aprobado", "Reprobado", "Aprobado", "Reprobado"],
                 "Cantidad": [aprob1, reprob1, aprob2, reprob2]
             })
-
-            plt.figure(figsize=(7, 6))
-            sns.barplot(data=df_aprob, x="Archivo", y="Cantidad", hue="Resultado", palette="pastel")
-            plt.title("Comparación de aprobados y reprobados")
-            plt.ylim(0, 100)
+ 
+            fig_sns, ax_sns = plt.subplots(figsize=(7, 6))
+            sns.barplot(data=df_aprob, x="Archivo", y="Cantidad", hue="Resultado", palette="pastel", ax=ax_sns)
+ 
+            for barra in ax_sns.patches:
+                altura = barra.get_height()
+                if altura > 0:
+                    ax_sns.text(
+                        barra.get_x() + barra.get_width() / 2,
+                        altura + 0.5,
+                        f"{int(altura)}",
+                        ha="center", va="bottom", fontsize=9, fontweight="bold"
+                    )
+ 
+            ax_sns.set_title("Comparación de aprobados y reprobados")
+            ax_sns.set_ylim(0, 100)
             plt.tight_layout()
-
-            fig_aprob = plt.gcf()
+ 
+            fig_aprob = fig_sns
             fig_aprob_actual = fig_aprob
-
-            canvas2 = FigureCanvasTkAgg(fig_aprob, master=frame_graficas)
+ 
+            canvas2 = FigureCanvasTkAgg(fig_sns, master=frame_graficas)
             canvas2.draw()
             canvas2.get_tk_widget().pack(pady=20)
-
+ 
         def guardar_png():
             archivo = filedialog.asksaveasfilename(
                 defaultextension=".png",
@@ -672,40 +714,39 @@ def analizar_datos2(modo="aciertos"):
                 if fig_comparacion_actual is not None:
                     fig_comparacion_actual.savefig(archivo, dpi=300)
                 messagebox.showinfo("Guardado", f"Gráfica guardada como:\n{archivo}")
-
+ 
         ctk.CTkButton(
             frame_graficas,
             text="💾 Guardar gráfica como PNG",
             command=guardar_png
         ).pack(pady=10)
-
+ 
     def resetear_comparacion():
         combo_grupo1.set("(Todos)")
         combo_grupo2.set("(Todos)")
         generar_comparacion()
-
+ 
     botones_frame = ctk.CTkFrame(frame_scroll)
     botones_frame.pack(pady=10)
-
+ 
     ctk.CTkButton(
         botones_frame, text="📊 Generar comparación", command=generar_comparacion
     ).grid(row=0, column=0, padx=10)
-
+ 
     ctk.CTkButton(
         botones_frame, text="🔄 Restablecer comparación general",
         fg_color="gray", command=resetear_comparacion
     ).grid(row=0, column=1, padx=10)
-
+ 
     def on_close():
         if fig_comparacion_actual is not None:
             plt.close(fig_comparacion_actual)
         if fig_aprob_actual is not None:
             plt.close(fig_aprob_actual)
         ventana_comp.destroy()
-
+ 
     ventana_comp.protocol("WM_DELETE_WINDOW", on_close)
     generar_comparacion()
-
 
 # ---------- comparar_reprobados ----------
 def comparar_reprobados():
@@ -1178,6 +1219,45 @@ def comparar_promedios_por_carrera_dos_archivos():
     ventana.protocol("WM_DELETE_WINDOW", on_close)
 
 
+
+def filtrarPrepa():
+    ruta = filedialog.askopenfilename(
+        title="Selecciona el archivo Excel",
+        filetypes=[("Archivos Excel", "*.xlsx *.xls")]
+    )
+    if not ruta:
+        messagebox.showinfo("Cancelado", "No se seleccionó ningún archivo.")
+        return
+
+    try:
+        df = pd.read_excel(ruta)
+    except Exception as e:
+        messagebox.showerror("Error al leer Excel", str(e))
+        return
+
+
+    if "FINAL_CALIF DIAG" not in df.columns:
+        messagebox.showerror("Error", "El archivo no contiene la columna 'CALIF DIAG'.")
+        return
+    
+    df['nombre_preparatoria'] = df['nombre_preparatoria'].str.upper()
+
+# Filtrar filas donde 'nombre_preparatoria' es publica
+    prepas_publicas = df[df['nombre_preparatoria'].str.contains("COLEGIO DE BACHILLERES"
+    "|COBACH|CENTRO DE BACHILLERATO TECNOLOGICO INDUSTRIAL Y DE SERVICIOS"
+    "|CBTIS|COLEGIO DE ESTUDIOS CIENTIFICOS Y TECNOLOGICOS"
+    "|CECYTE|COLEGIO NACIONAL DE EDUCACION PROFESIONAL TECNICA"
+    "|CONALEP|CENTRO DE BACHILLERATO TECNOLOGICO AGROPECUARIO|CBTA", case=False, na=False)]
+
+    print(prepas_publicas)
+
+
+
+
+
+
+
+
 # ---------- comparar_promedio_final_por_carrera ----------
 def comparar_promedio_final_por_carrera():
     """Lee un archivo Excel y grafica el promedio final por carrera con scroll."""
@@ -1573,3 +1653,223 @@ def cargar_formateador(tipo_form):
             repetir2 = procesar_excel()
             if not repetir2:
                 break
+
+
+
+
+
+
+
+
+ 
+ 
+def comparar_promedio_por_modelo():
+    """Lee un archivo Excel, clasifica prepas como pública/privada y grafica top 10 por promedio."""
+ 
+    KEYWORDS_PUBLICAS = [
+        "COLEGIO DE BACHILLERES", "COBACH",
+        "CENTRO DE BACHILLERATO TECNOLOGICO INDUSTRIAL Y DE SERVICIOS", "CBTIS",
+        "COLEGIO DE ESTUDIOS CIENTIFICOS Y TECNOLOGICOS", "CECYTE",
+        "COLEGIO NACIONAL DE EDUCACION PROFESIONAL TECNICA", "CONALEP",
+        "CENTRO DE BACHILLERATO TECNOLOGICO AGROPECUARIO", "CBTA",
+        "PREPARATORIA FEDERAL", "PREPA FEDERAL",
+        "ESCUELA PREPARATORIA FEDERAL", "BACHILLERATO GENERAL",
+        "DGETI", "DGB", "EMSAD"
+    ]
+    PATRON_PUBLICAS = "|".join(KEYWORDS_PUBLICAS)
+ 
+    COL_DIAG   = "DIAG_CALIF DIAG"
+    COL_FINAL  = "FINAL_CALIF DIAG"
+    COL_PREPA  = "nombre_preparatoria"
+ 
+    # ── Selección de archivo ──────────────────────────────────────────────────
+    ruta = filedialog.askopenfilename(
+        title="Selecciona el archivo Excel",
+        filetypes=[("Archivos Excel", "*.xlsx *.xls")]
+    )
+    if not ruta:
+        messagebox.showinfo("Cancelado", "No se seleccionó ningún archivo.")
+        return
+ 
+    try:
+        df = pd.read_excel(ruta)
+    except Exception as e:
+        messagebox.showerror("Error al leer Excel", str(e))
+        return
+ 
+    # ── Validaciones ─────────────────────────────────────────────────────────
+    faltantes = [c for c in [COL_DIAG, COL_FINAL, COL_PREPA] if c not in df.columns]
+    if faltantes:
+        messagebox.showerror("Error", f"Faltan columnas: {', '.join(faltantes)}")
+        return
+ 
+    # ── Clasificación pública / privada ───────────────────────────────────────
+    df[COL_PREPA] = df[COL_PREPA].str.upper().str.strip()
+    df["modelo"] = df[COL_PREPA].apply(
+        lambda nombre: "Publica"
+        if pd.notna(nombre) and pd.Series(nombre).str.contains(PATRON_PUBLICAS, case=False, na=False).iloc[0]
+        else "Privada"
+    )
+ 
+    nombre_archivo = os.path.basename(ruta).replace(".xlsx", "").replace(".xls", "")
+ 
+    # ── Ventana principal ─────────────────────────────────────────────────────
+    ventana = ctk.CTkToplevel()
+    ventana.title(f"Top 10 Preparatorias por Promedio — {nombre_archivo}")
+    ventana.geometry("1200x900")
+ 
+    frame = crear_frame_scrollable_toplevel(ventana)
+ 
+    # ── Controles ─────────────────────────────────────────────────────────────
+    frame_controles = ctk.CTkFrame(frame)
+    frame_controles.pack(pady=15, padx=20, fill="x")
+ 
+    # Combo: tipo de examen
+    ctk.CTkLabel(frame_controles, text="Tipo de calificación:").grid(row=0, column=0, padx=10, pady=8, sticky="w")
+    combo_tipo = ttk.Combobox(
+        frame_controles,
+        values=["Diagnóstico", "Final"],
+        state="readonly", width=18
+    )
+    combo_tipo.set("Diagnóstico")
+    combo_tipo.grid(row=0, column=1, padx=10, pady=8)
+ 
+    # Combo: modelo de prepa
+    ctk.CTkLabel(frame_controles, text="Tipo de preparatoria:").grid(row=0, column=2, padx=10, pady=8, sticky="w")
+    combo_modelo = ttk.Combobox(
+        frame_controles,
+        values=["Todas", "Publica", "Privada"],
+        state="readonly", width=18
+    )
+    combo_modelo.set("Todas")
+    combo_modelo.grid(row=0, column=3, padx=10, pady=8)
+ 
+    # ── Área de gráficas ──────────────────────────────────────────────────────
+    frame_graficas = ctk.CTkFrame(frame)
+    frame_graficas.pack(fill="both", expand=True, pady=10)
+ 
+    fig_actual = [None]  # lista para mutabilidad en closures
+ 
+    # ── Función de graficación ────────────────────────────────────────────────
+    def generar_grafica():
+        # Cerrar figura anterior
+        if fig_actual[0] is not None:
+            plt.close(fig_actual[0])
+            fig_actual[0] = None
+ 
+        for w in frame_graficas.winfo_children():
+            w.destroy()
+ 
+        tipo   = combo_tipo.get()
+        modelo = combo_modelo.get()
+ 
+        col_calif = COL_DIAG if tipo == "Diagnóstico" else COL_FINAL
+        label_eje = "Promedio Diagnóstico" if tipo == "Diagnóstico" else "Promedio Final"
+ 
+        # Filtrar por modelo si aplica
+        df_filtrado = df.copy()
+        if modelo != "Todas":
+            df_filtrado = df_filtrado[df_filtrado["modelo"] == modelo]
+ 
+        if df_filtrado.empty:
+            messagebox.showinfo("Sin datos", f"No hay registros para: {modelo}.")
+            return
+ 
+        # Top 10
+        top10 = (
+            df_filtrado.groupby(COL_PREPA)[col_calif]
+            .mean()
+            .reset_index()
+            .rename(columns={col_calif: "promedio"})
+            .sort_values("promedio", ascending=False)
+            .head(10)
+        )
+ 
+        if top10.empty:
+            messagebox.showinfo("Sin datos", "No se encontraron datos suficientes.")
+            return
+ 
+        # Etiqueta corta para el eje X
+        top10["etiqueta"] = top10[COL_PREPA].apply(
+            lambda n: n[:30] + "…" if len(n) > 30 else n
+        )
+ 
+        color_barra = (
+            "steelblue"    if modelo == "Todas"   else
+            "mediumseagreen" if modelo == "Publica" else
+            "tomato"
+        )
+ 
+        titulo_modelo = f"({modelo})" if modelo != "Todas" else "(Todas)"
+        fig, ax = plt.subplots(figsize=(11, 6))
+ 
+        top10 = top10.reset_index(drop=True)
+        posiciones = range(len(top10))
+ 
+        barras = ax.bar(posiciones, top10["promedio"], color=color_barra)
+ 
+        for barra in barras:
+            altura = barra.get_height()
+            ax.text(
+                barra.get_x() + barra.get_width() / 2,
+                altura + 0.8,
+                f"{altura:.2f}",
+                ha="center", va="bottom", fontsize=9, fontweight="bold"
+            )
+ 
+        ax.set_ylim(0, 100)
+        ax.set_ylabel(label_eje)
+        ax.set_title(f"Top 10 Preparatorias — {label_eje} {titulo_modelo}\n{nombre_archivo}")
+        ax.set_xticks(posiciones)
+        ax.set_xticklabels(top10["etiqueta"], rotation=30, ha="right", fontsize=8)
+        ax.grid(axis="y", linestyle="--", alpha=0.6)
+        plt.tight_layout()
+ 
+        fig_actual[0] = fig
+ 
+        canvas = FigureCanvasTkAgg(fig, master=frame_graficas)
+        canvas.draw()
+        canvas.get_tk_widget().pack(pady=10)
+ 
+        # Botón guardar PNG (se recrea junto a la gráfica)
+        def guardar_grafica():
+            ruta_guardado = filedialog.asksaveasfilename(
+                defaultextension=".png",
+                filetypes=[("Imagen PNG", "*.png")],
+                title="Guardar gráfica como imagen"
+            )
+            if ruta_guardado and fig_actual[0] is not None:
+                fig_actual[0].savefig(ruta_guardado, dpi=300)
+                messagebox.showinfo("Guardado", f"Gráfica guardada en:\n{ruta_guardado}")
+ 
+        ctk.CTkButton(
+            frame_graficas,
+            text="💾 Guardar gráfica",
+            command=guardar_grafica
+        ).pack(pady=8)
+ 
+    # ── Botones de acción ─────────────────────────────────────────────────────
+    frame_botones = ctk.CTkFrame(frame)
+    frame_botones.pack(pady=10)
+ 
+    ctk.CTkButton(
+        frame_botones,
+        text="📊 Generar gráfica",
+        command=generar_grafica
+    ).grid(row=0, column=0, padx=10)
+ 
+    ctk.CTkButton(
+        frame_botones,
+        text="🔄 Restablecer",
+        fg_color="gray",
+        command=lambda: [combo_tipo.set("Diagnóstico"), combo_modelo.set("Todas"), generar_grafica()]
+    ).grid(row=0, column=1, padx=10)
+ 
+    # ── Cierre limpio ─────────────────────────────────────────────────────────
+    def on_close():
+        if fig_actual[0] is not None:
+            plt.close(fig_actual[0])
+        ventana.destroy()
+ 
+    ventana.protocol("WM_DELETE_WINDOW", on_close)
+    generar_grafica()  # Gráfica inicial automática
